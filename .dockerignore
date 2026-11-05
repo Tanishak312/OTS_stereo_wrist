@@ -1,0 +1,11 @@
+# Allowlist: nothing enters the build unless it's named here, so a key file,
+# operator data or a new folder can't end up in the image by accident.
+*
+!src
+!public
+!package.json
+!package-lock.json
+!next.config.ts
+!next-env.d.ts
+!postcss.config.mjs
+!tsconfig.json

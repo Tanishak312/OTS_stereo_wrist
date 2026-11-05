@@ -1,0 +1,37 @@
+node_modules/
+.next/
+out/
+.env
+.env*.local
+.env.docker
+*.tsbuildinfo
+next-env.d.ts
+
+# Episode sheets: large and contain operator details
+data/*.csv
+
+# Old S3 transfer files, should any still be around: customer key ciphertext and logs
+transfer.env
+*-transfer.json
+transfer-*/
+worker.env
+
+# File lists downloaded from the admin page
+*-files.csv
+
+# Drive upload kit: its filled-in key file and logs
+drive-upload-kit/.env
+drive-upload-kit/*.log
+drive-upload-kit-head-wrist/.env
+drive-upload-kit-head-wrist/*.log
+
+# This repo is public. Kept out: zips (the kit copies can hold .env), bucket listings,
+# episode and file sheets, internal planning sheet, and the retired delivery code.
+*.zip
+data/
+drive-upload-kit*/files.csv
+drive-upload-kit*/episodes.csv
+OTS_combinations.xlsx
+archive/
+__pycache__/
+*.pyc

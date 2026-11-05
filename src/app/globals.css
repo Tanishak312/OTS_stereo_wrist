@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+/* Three layouts, as in Figma: Mobile (390), Tablet (834) and Desktop (1440).
+   lg: is the desktop layout, and only on a wide (landscape) screen: a portrait
+   tablet such as an iPad Pro 13" (1032 x 1376) is wider than 1024 px but gets
+   the tablet layout, like the Figma tablet frames. */
+@custom-variant lg (@media (width >= 64rem) and (orientation: landscape));
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-face), ui-monospace, SFMono-Regular, monospace;
+
+  --color-brand: #0a5bd3;
+  --color-brand-hover: #084bb0;
+  --color-brand-50: #eef4fe;
+  --color-brand-100: #dbe8fc;
+  --color-ink: #0b1220;
+  --color-muted: #5b6475;
+  --color-subtle: #8a93a3;
+  --color-line: #e4e7ec;
+  --color-surface: #f5f6f8;
+  --color-night: #07090d;
+
+  --color-success: #15803d;
+  --color-success-50: #e8f6ed;
+  --color-warn: #b45309;
+  --color-warn-50: #fdf3e3;
+  --color-danger: #b42318;
+  --color-danger-50: #fdecea;
+  --color-info: #0a5bd3;
+  --color-info-50: #e8f0fd;
+
+  /* Motion: one easing and a small set of entrances, used everywhere.
+     Entrances fill "backwards" so they hide during their delay but release
+     transform/opacity when done, leaving hover and press states free to work. */
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-fade-up: fade-up 0.6s var(--ease-out-expo) backwards;
+  --animate-fade-in: fade-in 0.5s var(--ease-out-expo) backwards;
+  --animate-rise-in: rise-in 0.8s var(--ease-out-expo) backwards;
+  --animate-enter-forward: enter-forward 0.5s var(--ease-out-expo) backwards;
+  --animate-enter-back: enter-back 0.5s var(--ease-out-expo) backwards;
+  --animate-leave: leave 0.28s ease-in both;
+  --animate-pop: pop 0.45s var(--ease-out-expo) backwards;
+  --animate-draw-x: draw-x 0.9s var(--ease-out-expo) backwards;
+  --animate-pulse-ring: pulse-ring 1.8s ease-out infinite;
+  --animate-slide-bar: slide-bar 1.6s ease-in-out infinite;
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(28px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes enter-forward {
+    from { opacity: 0; transform: translateX(36px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes enter-back {
+    from { opacity: 0; transform: translateX(-36px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes leave {
+    to { opacity: 0; transform: translateY(-12px) scale(0.99); }
+  }
+  @keyframes pop {
+    0% { opacity: 0; transform: scale(0.5); }
+    60% { opacity: 1; transform: scale(1.08); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes draw-x {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+  @keyframes slide-bar {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(250%); }
+  }
+  @keyframes pulse-ring {
+    0% { opacity: 0.55; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.45); }
+  }
+}
+
+html,
+body {
+  background: #ffffff;
+  color: var(--color-ink);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Kiosk: no accidental text selection or callouts on long-press. */
+.kiosk {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.kiosk input,
+.kiosk textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* In the components layer so utilities (lg:font-sans, text-[..]) can override it. */
+@layer components {
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Also exposed globally: arbitrary values like ease-[var(--ease-out-expo)] read it directly. */
+:root {
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+}
