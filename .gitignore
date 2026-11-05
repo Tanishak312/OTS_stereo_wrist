@@ -19,18 +19,11 @@ worker.env
 # File lists downloaded from the admin page
 *-files.csv
 
-# Drive upload kit: its filled-in key file and logs
-drive-upload-kit/.env
-drive-upload-kit/*.log
-drive-upload-kit-head-wrist/.env
-drive-upload-kit-head-wrist/*.log
 
-# This repo is public. Kept out: zips (the kit copies can hold .env), bucket listings,
-# episode and file sheets, internal planning sheet, and the retired delivery code.
+# This repo is public. Kept out: zips, bucket listings, episode and file sheets,
+# the internal planning sheet and the retired delivery code.
 *.zip
 data/
-drive-upload-kit*/files.csv
-drive-upload-kit*/episodes.csv
 OTS_combinations.xlsx
 archive/
 __pycache__/
