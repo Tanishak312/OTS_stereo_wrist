@@ -10,5 +10,5 @@ services:
     env_file: .env.docker
     network_mode: bridge
     ports:
-      - "3010:3010"
+      - "2204:2204"
     restart: unless-stopped
