@@ -15,20 +15,16 @@ function safeNext(next: FormDataEntryValue | null): string {
 }
 
 export async function signIn(_prev: ActionState, form: FormData): Promise<ActionState> {
-  // One shared admin account: the page asks only for its password, which lives in Supabase.
-  // It has to stay a real Supabase sign-in, because the database decides what an admin can read.
-  const email = process.env.ADMIN_EMAIL?.trim();
+  // Both come from the form, never from server config, so sign-in can't depend on a deploy
+  // setting. It has to stay a real Supabase sign-in: the database decides what an admin can read.
+  const email = String(form.get("email") ?? "").trim();
   const password = String(form.get("password") ?? "");
-  if (!password) return { error: "Enter the password." };
-  if (!email) {
-    console.error("[signIn] ADMIN_EMAIL is not set");
-    return { error: "Admin sign-in isn't set up: ADMIN_EMAIL is missing on the server." };
-  }
+  if (!email || !password) return { error: "Enter your email and password." };
 
   const supabase = await adminClient();
   const { data: auth, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
-    if (error.code === "invalid_credentials") return { error: "That password isn't right." };
+    if (error.code === "invalid_credentials") return { error: "That email and password don't match an admin account." };
     console.error("[signIn] sign-in failed", { code: error.code, status: error.status, message: error.message });
     return { error: error.status === 429 ? "Too many tries. Wait a few minutes, then try again." : `Couldn't sign in (${error.message}).` };
   }

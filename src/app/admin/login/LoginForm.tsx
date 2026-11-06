@@ -1,13 +1,31 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { signIn, type ActionState } from "../actions";
 
 export function LoginForm({ next }: { next: string }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(signIn, { error: null });
+  // React clears a form after its action runs; a mistyped password shouldn't cost the email too.
+  const [email, setEmail] = useState("");
   return (
     <form action={action} className="mt-6 space-y-4">
       <input type="hidden" name="next" value={next} />
+      <div>
+        <label htmlFor="email" className="block text-sm font-medium">
+          Email
+        </label>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          autoComplete="username"
+          autoFocus
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="mt-1.5 h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+        />
+      </div>
       <div>
         <label htmlFor="password" className="block text-sm font-medium">
           Password
@@ -17,7 +35,6 @@ export function LoginForm({ next }: { next: string }) {
           name="password"
           type="password"
           autoComplete="current-password"
-          autoFocus
           required
           className="mt-1.5 h-11 w-full rounded-lg border border-line px-3 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
         />
