@@ -16,6 +16,7 @@ needs no keys.
 | Variable | Needed | What it is |
 |---|---|---|
 | `SUPABASE_ANON_PUBLIC` | Yes | Supabase anon key |
+| `ADMIN_EMAIL` | Yes | Email of the shared Supabase admin user. Its password is set in Supabase, not here |
 | `RESEND_API_KEY` | Yes | Sends the customer emails. Keep it in AWS Secrets Manager |
 | `EMAIL_FROM` | Yes | e.g. `Awign Robotics Data <data@awign.in>`, on a domain verified in Resend |
 | `SAMPLE_DRIVE_URL_EGO` | Yes | Ego sample folder |
@@ -123,6 +124,8 @@ To go back, point the service at the previous task definition revision.
 |---|---|
 | Home page shows about 4,147 hours, not 14,701 | Datasheet estimate: `SUPABASE_ANON_PUBLIC` is missing or Supabase can't be reached. `[inventory]` in the logs says which |
 | `/admin` gives 500 | `SUPABASE_ANON_PUBLIC` is missing |
+| Admin sign-in says `ADMIN_EMAIL` is missing | Set it on the container and restart |
+| Admin sign-in says the password isn't right | Check the password of the `ADMIN_EMAIL` user in Supabase, and that this user is in `ots_admins` |
 | Target stays unhealthy | Target group port 3010, path `/api/health`, and the security group |
 | Container can't reach Supabase or Resend | The subnet has no internet route: public IP or NAT |
 | File list download stops at 60 seconds | Load balancer idle timeout |

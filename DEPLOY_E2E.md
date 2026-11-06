@@ -76,6 +76,7 @@ npm ci
 ```bash
 SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_ANON_PUBLIC=<anon key>               # same as your local .env
+ADMIN_EMAIL=<email of the Supabase admin user>
 RESEND_API_KEY=<resend key>
 EMAIL_FROM=Awign Robotics Data <data@awign.in>
 SAMPLE_DRIVE_URL_EGO=https://drive.google.com/drive/folders/<ego folder>

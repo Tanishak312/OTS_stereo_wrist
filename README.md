@@ -26,6 +26,7 @@ npm run dev        # http://localhost:3010
 | Variable | Needed for | Notes |
 |---|---|---|
 | `SUPABASE_ANON_PUBLIC` | everything | `SUPABASE_URL` is optional (derived from the key). |
+| `ADMIN_EMAIL` | admin sign-in | The shared Supabase admin user. `/admin/login` asks only for its password, which lives in Supabase, never in this repo. |
 | `RESEND_API_KEY` | every email | A *sending-access* key is enough. |
 | `EMAIL_FROM` | every email | e.g. `Awign Robotics Data <data@awign.in>`, on a domain verified in Resend. Until then Resend only delivers to its own account address. |
 | `SAMPLE_DRIVE_URL_EGO` | free sample, Ego-centric | The Google Drive folder, shared as "anyone with the link can view". Until it's set, samples stay **Pending delivery** with the reason on the admin page. |
@@ -117,8 +118,8 @@ dashboard, not by the app.
 10. Don't run [supabase/900_demo_seed.sql](supabase/900_demo_seed.sql) on a real project. Its 6 demo rows
    (`is_demo = true`, example.com emails) never show in the admin list anyway. Remove them with
    `delete from public.ots_requests where is_demo;`.
-11. **Authentication → Users → Add user** for each admin (email + password).
-12. Put them on the admin list:
+11. **Authentication → Users → Add user** for the shared admin account (email + password), and set `ADMIN_EMAIL` to that email.
+12. Put it on the admin list:
    ```sql
    insert into public.ots_admins (user_id, email)
    select id, email from auth.users where email = 'someone@awign.com';

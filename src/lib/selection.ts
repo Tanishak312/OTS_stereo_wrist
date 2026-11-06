@@ -192,12 +192,12 @@ export function validateContact(c: Contact): Partial<Record<keyof Contact, strin
   if (!email) errors.email = "Enter your email so we can send the dataset.";
   else if (!EMAIL_RE.test(email) || email.length > 254) errors.email = "Enter an email like name@company.com.";
 
-  const phone = c.phone.trim();
-  if (phone && !/^\+?[\d\s\-()]{7,20}$/.test(phone)) errors.phone = "Use digits only, with an optional + country code.";
-
   const company = c.company.trim();
   if (!company) errors.company = "Enter your company name.";
   else if (company.length > 160) errors.company = "Keep the company name under 160 characters.";
+
+  const phone = c.phone.trim();
+  if (phone && !/^\+?[\d\s\-()]{7,20}$/.test(phone)) errors.phone = "Use digits only, with an optional + country code.";
   return errors;
 }
 

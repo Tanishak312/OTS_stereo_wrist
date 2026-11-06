@@ -12,8 +12,8 @@ type Field = { key: keyof Contact; label: string; type: string; autoComplete: st
 const FIELDS: Field[] = [
   { key: "fullName", label: "Full name", type: "text", autoComplete: "name", required: true },
   { key: "email", label: "Email", type: "email", autoComplete: "email", inputMode: "email", required: true },
-  { key: "phone", label: "Phone", type: "tel", autoComplete: "tel", inputMode: "tel" },
   { key: "company", label: "Company", type: "text", autoComplete: "organization", required: true },
+  { key: "phone", label: "Phone", type: "tel", autoComplete: "tel", inputMode: "tel" },
 ];
 
 export const CONTACT_FORM_ID = "contact-form";
