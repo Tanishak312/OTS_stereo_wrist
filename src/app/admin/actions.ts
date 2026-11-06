@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { adminClient } from "@/lib/supabase";
 import { cleanAccess, emailBucketAccess, emailCustomer, validateAccess } from "@/lib/delivery";
-import type { OtsRequest, RequestStatus } from "@/lib/status";
+import { sampleByBucket, type OtsRequest, type RequestStatus } from "@/lib/status";
 
 export type ActionState = { error: string | null };
 
@@ -97,7 +97,7 @@ async function loadForEmail(token: string) {
   return { supabase, request: data as OtsRequest | null };
 }
 
-/** Sends the automatic email again: the Drive link for a sample, the confirmation for a dataset. */
+/** Sends the automatic email again: the Drive link, the "being prepared" note, or the confirmation. */
 export async function resendCustomerEmail(_prev: ActionState, form: FormData): Promise<ActionState> {
   const token = String(form.get("token") ?? "");
   const { supabase, request: r } = await loadForEmail(token);
@@ -136,10 +136,10 @@ export async function sendBucketAccess(_prev: ActionState, form: FormData): Prom
 
   const { supabase, request: r } = await loadForEmail(token);
   if (!r) return { error: `Couldn't load ${token}.` };
-  if (r.kind !== "dataset" || r.status === "rejected") return { error: `${token} can't be given access.` };
+  if (!(r.kind === "dataset" || sampleByBucket(r)) || r.status === "rejected") return { error: `${token} can't be given access.` };
 
   try {
-    await emailBucketAccess({ token: r.token, email: r.email, name: r.full_name, hours: r.matching_hours, bytes: r.matching_bytes }, access);
+    await emailBucketAccess({ token: r.token, kind: r.kind, email: r.email, name: r.full_name, hours: r.matching_hours, bytes: r.matching_bytes }, access);
   } catch (e) {
     const reason = e instanceof Error ? e.message : String(e);
     console.error("[sendBucketAccess]", token, reason);

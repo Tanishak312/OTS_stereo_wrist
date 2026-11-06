@@ -23,6 +23,7 @@ export function Success({
   token,
   email,
   hours,
+  preparing,
   canUpsell,
   onUpsell,
   onHome,
@@ -31,6 +32,8 @@ export function Success({
   token: string;
   email: string;
   hours: number;
+  /** A head + wrist sample: nothing to send yet, only a note that it's being prepared. */
+  preparing: boolean;
   canUpsell: boolean;
   onUpsell: () => void;
   onHome: () => void;
@@ -60,11 +63,13 @@ export function Success({
         )}
       </p>
       <h1 className="mt-4 animate-fade-up text-[26px] leading-[1.2] font-medium tracking-[-0.01em] lg:text-[36px]" style={delay(320)}>
-        {kind === "sample" ? `Your ${hours}-hour sample is on the way.` : copy.title}
+        {preparing ? "We're preparing your sample." : kind === "sample" ? `Your ${hours}-hour sample is on the way.` : copy.title}
       </h1>
       <p className="mt-3 animate-fade-up text-[16px] text-muted lg:text-[18px]" style={delay(380)}>
         {kind === "dataset" ? (
           <>A confirmation is on its way to {email}. Your access details follow when the data is ready.</>
+        ) : preparing ? (
+          <>We&rsquo;ll share it with {email} by email as soon as it&rsquo;s ready.</>
         ) : (
           <>Google Drive link going to {email}</>
         )}

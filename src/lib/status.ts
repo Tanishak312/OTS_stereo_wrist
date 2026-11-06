@@ -26,6 +26,11 @@ export function statusView(status: RequestStatus, kind: RequestKind) {
   return { label: STATUS_BY_ID[status]?.label ?? status, tone: STATUS_BY_ID[status]?.tone ?? ("neutral" as const) };
 }
 
+/** A head + wrist sample has no Drive folder: its first email says it's being prepared, and an admin sends a shared bucket's keys later. */
+export function sampleByBucket(r: { kind: RequestKind; capture_setup: string }) {
+  return r.kind === "sample" && r.capture_setup === "head_wrist";
+}
+
 /** Dataset requests that still need an admin decision. */
 export function needsReview(r: { kind: RequestKind; status: RequestStatus }) {
   return r.kind === "dataset" && (r.status === "submitted" || r.status === "in_review");

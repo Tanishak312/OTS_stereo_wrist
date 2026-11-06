@@ -230,8 +230,8 @@ export const MCAP_CONTENTS: [string, string][] = [
 ];
 
 export const FAQS: [string, string][] = [
-  ["How do I get the free sample?", "Leave your details and we email you a Google Drive link. No approval needed."],
-  ["What's in the sample?", "About 50 hours of MCAP files from across our environments. The MCAP already includes the video."],
+  ["How do I get the free sample?", "Leave your details. For Ego-centric we email you a Google Drive link right away. For Head + wrist we email you access as soon as your sample is ready."],
+  ["What's in the sample?", "About 50 hours of recordings. Ego-centric comes as MCAP files, which already include the video. Head + wrist comes as MP4 videos with calibration."],
   ["How is the full dataset delivered?", "We put the data you picked in a private cloud bucket and email you its access keys."],
   ["How do I download it?", "With any S3-compatible tool, such as the AWS CLI or rclone. The email has the command."],
   ["How long does it take?", "You get a confirmation by email right away. Your access details follow when the data is ready; bigger selections take longer."],

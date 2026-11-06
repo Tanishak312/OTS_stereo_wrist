@@ -187,6 +187,7 @@ export function Kiosk() {
             token={tokens[screen === "done-dataset" ? "dataset" : "sample"] ?? ""}
             email={contact.email.trim()}
             hours={DATASET.sampleHours}
+            preparing={screen !== "done-dataset" && sel.setup === "head_wrist"}
             canUpsell={!tokens[screen === "done-dataset" ? "sample" : "dataset"]}
             onUpsell={() => go(screen === "done-dataset" ? "contact-sample" : "contact-dataset")}
             onHome={reset}

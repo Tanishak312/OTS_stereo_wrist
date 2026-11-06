@@ -56,11 +56,10 @@ ${body}
 </td></tr></table></body></html>`;
 }
 
-/** Free sample: the capture setup's Google Drive folder, the same one for everyone. */
-export function sampleLinkEmail(p: { to: string; name: string; setup: string; link: string }): Email {
+/** Ego-centric free sample: the Google Drive folder, the same one for everyone. */
+export function sampleLinkEmail(p: { to: string; name: string; link: string }): Email {
   const first = firstName(p.name);
-  const kind = p.setup === "head_wrist" ? "head + wrist" : "stereo egocentric";
-  const intro = `Your free sample of the Awign ${kind} dataset is ready: MCAP recordings from across our environments, about 50 hours in all.`;
+  const intro = "Your free sample of the Awign stereo egocentric dataset is ready: MCAP recordings from across our environments, about 50 hours in all.";
   const how = "Each MCAP file holds the session's video along with its other streams, so that's all you need. Download the files you want from the folder, then open them in Foxglove or any MCAP reader.";
   const text = [`Hi ${first},`, "", intro, "", `Open the Google Drive folder: ${p.link}`, "", how, "", "— Awign Robotics Data"].join("\n");
   const html = page(
@@ -71,6 +70,21 @@ export function sampleLinkEmail(p: { to: string; name: string; setup: string; li
 <p style="${NOTE}">${esc(how)} If the button doesn't work, paste this into your browser:<br><a href="${esc(p.link)}" style="color:#0a5bd3;word-break:break-all">${esc(p.link)}</a></p>`,
   );
   return { to: p.to, subject: "Your Awign dataset sample is ready", html, text };
+}
+
+/** Head + wrist free sample: no data yet, only that it's on the way. */
+export function samplePreparingEmail(p: { to: string; name: string; token: string }): Email {
+  const first = firstName(p.name);
+  const body = "We've received your request for a free sample of the Awign head + wrist dataset, and we're preparing it now. As soon as it's ready, we'll share it with you by email.";
+  const quote = `Your request number is ${p.token}, in case you need to reach us about it.`;
+  const text = [`Hi ${first},`, "", body, "", quote, "", "— Awign Robotics Data"].join("\n");
+  const html = page(
+    `Free sample · ${p.token}`,
+    `We're preparing your sample, ${first}.`,
+    `<p style="${P}">${esc(body)}</p>
+<p style="${P};margin-bottom:0">${esc(quote)}</p>`,
+  );
+  return { to: p.to, subject: `We're preparing your Awign sample (${p.token})`, html, text };
 }
 
 const summaryLine = (p: { hours: number; size: string | null }) =>
@@ -92,21 +106,22 @@ export function datasetReceivedEmail(p: { to: string; name: string; token: strin
   return { to: p.to, subject: `We've received your dataset request (${p.token})`, html, text };
 }
 
-/** Full dataset: the keys to the bucket an admin filled. */
+/** The keys to a bucket: a dataset's own (`summary` says what's in it), or the shared head + wrist sample bucket (null). */
 export function bucketAccessEmail(p: {
   to: string;
   name: string;
   token: string;
-  hours: number;
-  size: string | null;
+  summary: { hours: number; size: string | null } | null;
   endpoint: string;
   bucket: string;
   accessKeyId: string;
   secret: string;
 }): Email {
   const first = firstName(p.name);
-  const summary = summaryLine(p);
-  const intro = "Your dataset is ready in its own Cloudflare R2 bucket. R2 works with any S3-compatible tool, such as the AWS CLI or rclone.";
+  const noun = p.summary ? "dataset" : "sample";
+  const summary = p.summary ? summaryLine(p.summary) : null;
+  const where = p.summary ? "Your dataset is ready in its own Cloudflare R2 bucket." : "Your free sample is ready in a Cloudflare R2 bucket.";
+  const intro = `${where} R2 works with any S3-compatible tool, such as the AWS CLI or rclone.`;
   const rows: [string, string][] = [
     ["Endpoint", p.endpoint],
     ["Bucket", p.bucket],
@@ -114,13 +129,13 @@ export function bucketAccessEmail(p: {
     ["Access key ID", p.accessKeyId],
     ["Secret access key", p.secret],
   ];
-  const command = `aws s3 sync s3://${p.bucket} ./awign-dataset --endpoint-url ${p.endpoint} --region auto`;
+  const command = `aws s3 sync s3://${p.bucket} ./awign-${noun} --endpoint-url ${p.endpoint} --region auto`;
   const private_ = "Keep these keys private: anyone who has them can read this bucket.";
   const text = [
     `Hi ${first},`,
     "",
     intro,
-    summary,
+    ...(summary ? [summary] : []),
     "",
     ...rows.map(([k, v]) => `${k}: ${v}`),
     "",
@@ -132,10 +147,10 @@ export function bucketAccessEmail(p: {
     "— Awign Robotics Data",
   ].join("\n");
   const html = page(
-    `Dataset ready · ${p.token}`,
-    `Your dataset is ready, ${first}.`,
+    `${p.summary ? "Dataset" : "Sample"} ready · ${p.token}`,
+    `Your ${noun} is ready, ${first}.`,
     `<p style="${P}">${esc(intro)}</p>
-<p style="${P}"><strong style="color:#0b1220">${esc(summary)}</strong></p>
+${summary ? `<p style="${P}"><strong style="color:#0b1220">${esc(summary)}</strong></p>` : ""}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px;font-size:14px;line-height:1.5">
 ${rows
   .map(
@@ -148,5 +163,5 @@ ${rows
 <p style="${CODE}">${esc(command)}</p>
 <p style="${NOTE}">${esc(private_)}</p>`,
   );
-  return { to: p.to, subject: `Your Awign dataset is ready (${p.token})`, html, text };
+  return { to: p.to, subject: `Your Awign ${noun} is ready (${p.token})`, html, text };
 }

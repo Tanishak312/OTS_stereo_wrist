@@ -24,7 +24,7 @@ export function CustomerEmail({
   error,
 }: {
   token: string;
-  /** "Google Drive link" or "Confirmation". */
+  /** "Google Drive link", "Preparing notice" or "Confirmation". */
   what: string;
   /** Already formatted: this file runs in the browser. */
   sentAt: string | null;
@@ -58,12 +58,15 @@ export function ReviewPanel({
   token,
   status,
   kind,
+  bucketSample,
   email,
   access,
 }: {
   token: string;
   status: RequestStatus;
   kind: "dataset" | "sample";
+  /** A head + wrist sample: delivered like a dataset, by emailing a bucket's keys. */
+  bucketSample: boolean;
   email: string;
   /** What was sent, once it has been. Already formatted. */
   access: { bucket: string | null; keyId: string | null; sentAt: string | null } | null;
@@ -71,6 +74,25 @@ export function ReviewPanel({
   const [state, action, pending] = useActionState<ActionState, FormData>(changeStatus, { error: null });
   const [note, setNote] = useState("");
   const open = status === "submitted" || status === "in_review";
+
+  if (bucketSample) {
+    if (access) return <AccessSent token={token} email={email} access={access} />;
+    return (
+      <div className="text-sm">
+        <ol className="list-decimal space-y-2 pl-4">
+          <li>
+            Use the shared head + wrist sample bucket in R2.{" "}
+            <span className="font-medium">Never copy a whole episode folder into it:</span> it holds operator names, phone numbers and locations.
+          </li>
+          <li>Use an R2 API token that is Object Read only, for this bucket only.</li>
+          <li>Paste its S3 credentials here.</li>
+        </ol>
+        <div className="mt-4">
+          <AccessForm token={token} email={email} initialBucket="" />
+        </div>
+      </div>
+    );
+  }
 
   // Free samples skip approval: they go out on their own.
   if (kind === "sample") {
@@ -86,33 +108,7 @@ export function ReviewPanel({
     );
   }
 
-  if (status === "approved") {
-    return (
-      <div className="text-sm">
-        <p className="font-medium text-success">Bucket access emailed</p>
-        <dl className="mt-2 space-y-1.5">
-          {(
-            [
-              ["When", access?.sentAt],
-              ["Bucket", access?.bucket],
-              ["Access key ID", access?.keyId],
-            ] as const
-          ).map(([k, v]) => (
-            <div key={k} className="flex justify-between gap-4">
-              <dt className="shrink-0 text-muted">{k}</dt>
-              <dd className="text-right break-all">{v ?? "—"}</dd>
-            </div>
-          ))}
-        </dl>
-        <details className="mt-4 border-t border-line pt-3">
-          <summary className="cursor-pointer font-medium text-brand">Send new access</summary>
-          <div className="mt-3">
-            <AccessForm token={token} email={email} initialBucket={access?.bucket ?? ""} />
-          </div>
-        </details>
-      </div>
-    );
-  }
+  if (status === "approved") return <AccessSent token={token} email={email} access={access} />;
 
   return (
     <div className="space-y-5">
@@ -162,6 +158,43 @@ export function ReviewPanel({
           </button>
         ) : null}
       </form>
+    </div>
+  );
+}
+
+/** What was sent, and a way to send a new key. */
+function AccessSent({
+  token,
+  email,
+  access,
+}: {
+  token: string;
+  email: string;
+  access: { bucket: string | null; keyId: string | null; sentAt: string | null } | null;
+}) {
+  return (
+    <div className="text-sm">
+      <p className="font-medium text-success">Bucket access emailed</p>
+      <dl className="mt-2 space-y-1.5">
+        {(
+          [
+            ["When", access?.sentAt],
+            ["Bucket", access?.bucket],
+            ["Access key ID", access?.keyId],
+          ] as const
+        ).map(([k, v]) => (
+          <div key={k} className="flex justify-between gap-4">
+            <dt className="shrink-0 text-muted">{k}</dt>
+            <dd className="text-right break-all">{v ?? "—"}</dd>
+          </div>
+        ))}
+      </dl>
+      <details className="mt-4 border-t border-line pt-3">
+        <summary className="cursor-pointer font-medium text-brand">Send new access</summary>
+        <div className="mt-3">
+          <AccessForm token={token} email={email} initialBucket={access?.bucket ?? ""} />
+        </div>
+      </details>
     </div>
   );
 }

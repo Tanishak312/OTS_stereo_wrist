@@ -20,7 +20,6 @@ needs no keys.
 | `RESEND_API_KEY` | Yes | Sends the customer emails. Keep it in AWS Secrets Manager |
 | `EMAIL_FROM` | Yes | e.g. `Awign Robotics Data <data@awign.in>`, on a domain verified in Resend |
 | `SAMPLE_DRIVE_URL_EGO` | Yes | Ego sample folder |
-| `SAMPLE_DRIVE_URL_HEAD_WRIST` | Yes | Head + wrist sample folder |
 | `OFFER_MCAP` | Yes | `true`, so full-dataset sizes count MCAP |
 | `SUPABASE_URL` | No | Only if the anon key doesn't carry the project ref |
 

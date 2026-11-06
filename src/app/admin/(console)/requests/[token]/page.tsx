@@ -4,7 +4,7 @@ import { DIFFICULTY_BY_ID, SETUP_BY_ID, deliveryContents, domainName, skillName 
 import { formatDateTime, loadRequest } from "@/lib/admin-data";
 import { loadInventory } from "@/lib/inventory-server";
 import { formatHours, formatHoursFine, formatSize, requestBreakdown, type BreakdownEnvironment } from "@/lib/selection";
-import { statusView } from "@/lib/status";
+import { sampleByBucket, statusView } from "@/lib/status";
 import { CustomerEmail, ReviewPanel } from "./ReviewPanel";
 
 type Params = { token: string };
@@ -56,6 +56,7 @@ export default async function RequestPage({
 
   const doneMsg = done ? DONE_COPY[done] : undefined;
   const dataset = r.kind === "dataset";
+  const bucketSample = sampleByBucket(r);
   const inventory = await loadInventory();
   // A request keeps the numbers from when it was made; older ones have none, so they use today's.
   const breakdown = dataset
@@ -109,7 +110,7 @@ export default async function RequestPage({
               <Item label="Capture setup" value={SETUP_BY_ID[r.capture_setup]?.name ?? r.capture_setup} />
               <Item label="Matching hours (when requested)" value={`${formatHours(r.matching_hours)} h`} />
               {dataset && <Item label="Size (when requested)" value={r.matching_bytes ? `≈ ${formatSize(r.matching_bytes)}` : "—"} />}
-              <Item label="Delivery" value={dataset ? `${contents} · R2 bucket` : "MCAP files · Google Drive folder, the same for everyone"} />
+              <Item label="Delivery" value={dataset ? `${contents} · R2 bucket` : bucketSample ? `${contents} · shared R2 bucket` : "MCAP files · Google Drive folder, the same for everyone"} />
               <Item
                 label="Difficulty"
                 value={r.difficulties.length ? r.difficulties.map((d) => DIFFICULTY_BY_ID[d]?.name ?? d).join(", ") : "Balanced mix (all)"}
@@ -156,17 +157,21 @@ export default async function RequestPage({
                 <span className="mt-0.5 block">{r.review_note}</span>
               </p>
             )}
-            <CustomerEmail
-              token={r.token}
-              what={dataset ? "Confirmation" : "Google Drive link"}
-              sentAt={r.customer_emailed_at ? formatDateTime(r.customer_emailed_at) : null}
-              error={r.customer_email_error}
-            />
+            {/* Once a head + wrist sample has its keys, a "we're preparing it" email would only confuse. */}
+            {!(bucketSample && r.access_sent_at) && (
+              <CustomerEmail
+                token={r.token}
+                what={dataset ? "Confirmation" : bucketSample ? "Preparing notice" : "Google Drive link"}
+                sentAt={r.customer_emailed_at ? formatDateTime(r.customer_emailed_at) : null}
+                error={r.customer_email_error}
+              />
+            )}
             <div className="mt-4 border-t border-line pt-4 empty:hidden">
               <ReviewPanel
                 token={r.token}
                 status={r.status}
                 kind={r.kind}
+                bucketSample={bucketSample}
                 email={r.email}
                 access={r.access_sent_at ? { bucket: r.access_bucket, keyId: r.access_key_id, sentAt: formatDateTime(r.access_sent_at) } : null}
               />

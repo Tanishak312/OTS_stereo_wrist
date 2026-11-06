@@ -12,7 +12,7 @@ and a dataset's bucket is filled by hand.
 
 ## 0. Before you start (once)
 
-- [ ] **Supabase**: SQL files 001–014 run, the Orion (with batch 6) and Axis indexes
+- [ ] **Supabase**: SQL files 001–015 run, the Orion (with batch 6) and Axis indexes
       imported. Check in the SQL editor:
       ```sql
       select capture_setup, count(*), round(sum(duration_s)/3600.0) as hours
@@ -21,8 +21,8 @@ and a dataset's bucket is filled by hand.
 - [ ] **Supabase plan**: on Free, a project with no activity for 7 days is paused,
       and then the kiosk stops taking requests. Use Pro, or open the admin page
       every few days.
-- [ ] **Google Drive**: the two sample folders exist, shared as "anyone with the
-      link can view", with their links ready for step 5.
+- [ ] **Google Drive**: the Ego-centric sample folder exists, shared as "anyone with the
+      link can view", with its link ready for step 5.
 - [ ] **Domain**: pick the address, e.g. `ots.awign.com`. Whoever manages
       awign.com DNS will add one A record in step 3.
 - [ ] **Resend**: verify the sending domain (e.g. `awign.in`) in Resend → Domains
@@ -80,7 +80,6 @@ ADMIN_EMAIL=<email of the Supabase admin user>
 RESEND_API_KEY=<resend key>
 EMAIL_FROM=Awign Robotics Data <data@awign.in>
 SAMPLE_DRIVE_URL_EGO=https://drive.google.com/drive/folders/<ego folder>
-SAMPLE_DRIVE_URL_HEAD_WRIST=https://drive.google.com/drive/folders/<head + wrist folder>
 OFFER_MCAP=true                               # full-dataset sizes count MCAP; see the note in README
 ```
 
@@ -142,9 +141,11 @@ Check: `https://ots.awign.com` opens the kiosk.
 
 - [ ] Kiosk: step through, numbers load (hours on the cards).
 - [ ] `https://ots.awign.com/admin`: admin login works.
-- [ ] Request a **free sample** with your own email, once for each capture setup.
-      The email arrives and its button opens the right Drive folder. The request
-      shows **Sent** in the admin.
+- [ ] Request an **Ego-centric free sample** with your own email. The email arrives
+      and its button opens the Drive folder. The request shows **Sent** in the admin.
+- [ ] Request a **head + wrist free sample**. The "we're preparing it" email arrives
+      and the request shows **Pending delivery**. Send the bucket access from the
+      request page: the keys arrive and it shows **Sent**.
 - [ ] Request a **full dataset** with your own email. The confirmation arrives, and
       the request page shows the breakdown per environment and skill.
 - [ ] **Download the file list** on that request; its rows match the selection.
@@ -179,7 +180,7 @@ New SQL files in `supabase/` are run in the Supabase SQL editor **before**
 |---|---|
 | Site down / 502 | `pm2 status`, `pm2 logs ots-web` |
 | A customer's email didn't go out | The reason is on the request page. Then `EMAIL_FROM`, Resend domain verified, and **Send again** |
-| Samples stay "Pending delivery" | `SAMPLE_DRIVE_URL_EGO` / `SAMPLE_DRIVE_URL_HEAD_WRIST` in `.env`, then `pm2 reload ots-web --update-env` |
+| Ego-centric samples stay "Pending delivery" | `SAMPLE_DRIVE_URL_EGO` in `.env`, then `pm2 reload ots-web --update-env` |
 | Admin page: `PGRST202` in logs | a SQL file in `supabase/` hasn't been run |
 | Customer gets `AccessDenied` on the bucket | the token's bucket or its Object Read permission in R2 |
 | File list download fails | `pm2 logs ots-web`; it's all or nothing, so try again |

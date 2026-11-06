@@ -26,7 +26,7 @@ export async function submitRequest(payload: RequestPayload): Promise<SubmitResu
     return { ok: false, error: "No recordings match these choices yet. Go back and widen your environments or tasks." };
   }
   const wholeHours = Math.max(1, Math.round(hours)); // the column is whole hours
-  // Kept on a full-dataset request: what the admin fills the bucket against. A sample is a fixed Drive folder.
+  // Kept on a full-dataset request: what the admin fills the bucket against. A sample is the same for everyone.
   const dataset = payload.kind === "dataset";
   const bytes = dataset ? Math.round(matchingBytes(payload, inventory)) : null;
 

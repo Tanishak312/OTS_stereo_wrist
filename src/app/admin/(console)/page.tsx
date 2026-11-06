@@ -53,6 +53,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
     { label: "Datasets to review", value: count(needsReview), href: filterHref({}, { status: "open" }), icon: "clock" },
     { label: "Access sent", value: count((r) => r.kind === "dataset" && r.status === "approved"), href: filterHref({}, { status: "approved" }), icon: "check" },
     { label: "Datasets rejected", value: count((r) => r.kind === "dataset" && r.status === "rejected"), href: filterHref({}, { status: "rejected" }), icon: "x" },
+    { label: "Samples to send", value: count((r) => r.kind === "sample" && r.status === "submitted"), href: filterHref({}, { status: "pending_delivery" }), icon: "clock" },
     { label: "Free samples", value: count((r) => r.kind === "sample"), href: filterHref({}, { kind: "sample" }), icon: "list" },
   ] as const;
 
@@ -66,9 +67,9 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Requests</h1>
-      <p className="mt-1 text-sm text-muted">Full-dataset requests wait for you to fill a bucket and send its access. Free samples go out by themselves and are listed for tracking.</p>
+      <p className="mt-1 text-sm text-muted">Full-dataset requests wait for you to fill a bucket and send its access. So do head + wrist samples, from one shared bucket. Ego-centric samples go out by themselves.</p>
 
-      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
         {kpis.map((k) => (
           <Link key={k.label} href={k.href} className="flex items-center gap-4 rounded-xl border border-line bg-white p-4 hover:border-subtle">
             <KpiIcon icon={k.icon} />

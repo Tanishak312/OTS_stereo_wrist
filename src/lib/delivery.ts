@@ -1,31 +1,31 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { bucketAccessEmail, datasetReceivedEmail, sampleLinkEmail, sendEmail } from "./email";
+import { bucketAccessEmail, datasetReceivedEmail, sampleLinkEmail, samplePreparingEmail, sendEmail } from "./email";
 import { formatSize, type RequestKind } from "./selection";
 
 // How a request reaches the customer. Nothing here touches R2:
-//   Free sample   the setup's Google Drive folder, emailed right after submit.
-//   Full dataset  a confirmation right after submit; an admin fills an R2 bucket
-//                 by hand, then emails its keys from the request page.
+//   Ego-centric sample   the Google Drive folder, emailed right after submit.
+//   Head + wrist sample  a note that it's being prepared; an admin later emails
+//                        the keys of a shared R2 bucket from the request page.
+//   Full dataset         a confirmation right after submit; an admin fills an R2
+//                        bucket by hand, then emails its keys from the request page.
 
 /** The R2 account the customers' buckets live in (override with R2_ENDPOINT). */
 const DEFAULT_R2_ENDPOINT = "https://fba1fd7178f04a07c2c459f00a47a625.r2.cloudflarestorage.com";
 const r2Endpoint = () => process.env.R2_ENDPOINT?.trim() || DEFAULT_R2_ENDPOINT;
 
-const DRIVE_ENV = { ego: "SAMPLE_DRIVE_URL_EGO", head_wrist: "SAMPLE_DRIVE_URL_HEAD_WRIST" } as const;
-
-/** The Google Drive folder of a capture setup's sample. Throws with the setting to fix. */
-function sampleDriveUrl(setup: string): string {
-  const name = setup === "head_wrist" ? DRIVE_ENV.head_wrist : DRIVE_ENV.ego;
-  const url = process.env[name]?.trim();
-  if (!url || !/^https:\/\//.test(url)) throw new Error(`${name} is not set in .env, so there is no Drive link to send`);
+/** The Google Drive folder of the Ego-centric sample. Throws with the setting to fix. */
+function sampleDriveUrl(): string {
+  const url = process.env.SAMPLE_DRIVE_URL_EGO?.trim();
+  if (!url || !/^https:\/\//.test(url)) throw new Error("SAMPLE_DRIVE_URL_EGO is not set in .env, so there is no Drive link to send");
   return url;
 }
 
 export type CustomerEmailRequest = { token: string; kind: RequestKind; email: string; name: string; setup: string; hours: number; bytes: number | null };
 
 /**
- * The email every request gets on its own: the Drive link for a sample, the
- * confirmation for a dataset. Records the outcome (ots_record_customer_email).
+ * The email every request gets on its own: the Drive link for an Ego-centric sample, a
+ * "being prepared" note for a head + wrist one, the confirmation for a dataset.
+ * Records the outcome (ots_record_customer_email).
  * Returns why it failed, or null. Never throws: the request is already saved,
  * so a failed email must not turn into an error on the kiosk.
  */
@@ -35,9 +35,11 @@ export async function emailCustomer(client: SupabaseClient, req: CustomerEmailRe
   let error: string | null = null;
   try {
     emailId = await sendEmail(
-      req.kind === "sample"
-        ? sampleLinkEmail({ to: req.email, name: req.name, setup: req.setup, link: sampleDriveUrl(req.setup) })
-        : datasetReceivedEmail({ to: req.email, name: req.name, token: req.token, hours: req.hours, size: req.bytes ? formatSize(req.bytes) : null }),
+      req.kind === "dataset"
+        ? datasetReceivedEmail({ to: req.email, name: req.name, token: req.token, hours: req.hours, size: req.bytes ? formatSize(req.bytes) : null })
+        : req.setup === "head_wrist"
+          ? samplePreparingEmail({ to: req.email, name: req.name, token: req.token })
+          : sampleLinkEmail({ to: req.email, name: req.name, link: sampleDriveUrl() }),
     );
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
@@ -66,14 +68,17 @@ export function validateAccess(a: BucketAccess): string | null {
 }
 
 /** Emails the customer their bucket's keys. Throws with the reason if it doesn't go out; the secret is not kept anywhere. */
-export async function emailBucketAccess(req: { token: string; email: string; name: string; hours: number; bytes: number | null }, access: BucketAccess): Promise<void> {
+export async function emailBucketAccess(
+  req: { token: string; kind: RequestKind; email: string; name: string; hours: number; bytes: number | null },
+  access: BucketAccess,
+): Promise<void> {
   await sendEmail(
     bucketAccessEmail({
       to: req.email,
       name: req.name,
       token: req.token,
-      hours: req.hours,
-      size: req.bytes ? formatSize(req.bytes) : null,
+      // A sample's bucket is shared, so what it holds isn't what this request matched.
+      summary: req.kind === "sample" ? null : { hours: req.hours, size: req.bytes ? formatSize(req.bytes) : null },
       endpoint: r2Endpoint(),
       ...access,
     }),

@@ -30,7 +30,6 @@ npm run dev        # http://localhost:3010
 | `RESEND_API_KEY` | every email | A *sending-access* key is enough. |
 | `EMAIL_FROM` | every email | e.g. `Awign Robotics Data <data@awign.in>`, on a domain verified in Resend. Until then Resend only delivers to its own account address. |
 | `SAMPLE_DRIVE_URL_EGO` | free sample, Ego-centric | The Google Drive folder, shared as "anyone with the link can view". Until it's set, samples stay **Pending delivery** with the reason on the admin page. |
-| `SAMPLE_DRIVE_URL_HEAD_WRIST` | free sample, head + wrist | The same, for head + wrist. |
 | `OFFER_MCAP` | sizes of full datasets | Off unless `true`; on since Nov 2026. Each `session.mcap` embeds operator id, age range, gender, handedness, city, business name and location (more than the datasheet's "anonymised operator ID and job / role"), and the sample's Drive folder holds these same files with no approval in front of it. |
 | `R2_ENDPOINT` | bucket access email | Optional; defaults to our R2 account. |
 
@@ -135,12 +134,22 @@ Full dataset
         │                │
         └────────────────┴──► rejected (note required) ──► in_review (reopen)
 
-Free 50 h sample (no approval)
+Free 50 h sample, Ego-centric (no approval)
   submitted (Pending delivery) ──► sample_sent (Sent)
+
+Free 50 h sample, head + wrist (no approval)
+  submitted (Pending delivery) ── admin emails bucket access ──► sample_sent (Sent)
 ```
 
-**Free sample** ([src/lib/delivery.ts](src/lib/delivery.ts)): right after submit, Resend emails the
-visitor the capture setup's Google Drive folder (`SAMPLE_DRIVE_URL_*`). It's a fixed folder of MCAP
+**Head + wrist sample:** it has no Drive folder. Right after submit, Resend emails the visitor that
+the sample is being prepared, and the request stays **Pending delivery**. An admin then emails the keys
+of one shared R2 bucket from the request page, which marks it **Sent**. Everyone shares that bucket's
+token, so replacing it means every customer's old key stops working. Needs
+[supabase/015_head_wrist_sample_bucket.sql](supabase/015_head_wrist_sample_bucket.sql), run before the
+code that uses it.
+
+**Ego-centric sample** ([src/lib/delivery.ts](src/lib/delivery.ts)): right after submit, Resend emails the
+visitor the Google Drive folder (`SAMPLE_DRIVE_URL_EGO`). It's a fixed folder of MCAP
 files, the same for everyone, so what they picked on the kiosk doesn't change what they get; it's still
 stored on the request. Success marks the request **Sent**. A failure (link not set, email refused) leaves
 it **Pending delivery** with the reason on the request page, which has **Send again** and, if it was

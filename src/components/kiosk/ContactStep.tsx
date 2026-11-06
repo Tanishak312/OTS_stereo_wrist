@@ -19,7 +19,7 @@ const FIELDS: Field[] = [
 export const CONTACT_FORM_ID = "contact-form";
 
 export function submitLabel(kind: RequestKind) {
-  return kind === "dataset" ? "Submit request" : `Send my ${DATASET.sampleHours} h sample`;
+  return kind === "dataset" ? "Submit request" : `Request my ${DATASET.sampleHours} h sample`;
 }
 
 export function ContactStep({
