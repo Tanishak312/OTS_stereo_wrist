@@ -30,10 +30,15 @@ function Badge({ className = "" }: { className?: string }) {
   const h = headline(useInventory());
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-md bg-[#d92d20] px-2 py-1 font-mono text-[11px] tracking-[0.12em] text-white uppercase md:gap-2 md:px-3 md:py-1.5 md:text-[12px] ${className}`}
+      // Phones get the short line on one row, and the tag can never run past the card's edge.
+      className={`inline-flex max-w-[calc(100%-3rem)] items-center gap-1.5 rounded-md bg-[#d92d20] px-2 py-1 font-mono text-[10px] tracking-[0.08em] text-white uppercase md:max-w-none md:gap-2 md:px-3 md:py-1.5 md:text-[12px] md:tracking-[0.12em] ${className}`}
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden="true" />
-      {`${formatHours(h.hours)} h · ${h.setups} setup${h.setups === 1 ? "" : "s"} · ${h.domains} environment types`}
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-white" aria-hidden="true" />
+      <span>
+        {formatHours(h.hours)} h
+        <span className="hidden md:inline">{` · ${h.setups} setup${h.setups === 1 ? "" : "s"}`}</span>
+        {` · ${h.domains} environment types`}
+      </span>
     </span>
   );
 }
@@ -50,7 +55,7 @@ function Stat({ value, suffix = "", label, index, mobile }: { value: number; suf
       <dd
         className={
           mobile
-            ? "tabular text-[25px] leading-none font-normal tracking-[-0.02em] whitespace-nowrap md:text-[44px]"
+            ? "tabular text-[clamp(18px,6.2vw,25px)] leading-none font-normal tracking-[-0.02em] whitespace-nowrap md:text-[44px]"
             : "tabular text-[37px] leading-none font-light whitespace-nowrap"
         }
         aria-label={`${formatHours(value)}${suffix}`}
