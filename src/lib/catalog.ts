@@ -60,7 +60,7 @@ export const SETUPS: CaptureSetup[] = [
     delivery: DATASET.delivery,
     graded: true,
     gbPerHour: 6.2,
-    mcap: { gbPerHour: 14, delivery: "MCAP (stereo video, IMU, calibration, transforms, annotations, session details)" },
+    mcap: { gbPerHour: 14, delivery: "MCAP (stereo video, IMU, calibration, transforms, session details; task annotations as an add-on)" },
   },
   {
     id: "head_wrist",
@@ -229,23 +229,33 @@ export const MCAP_CONTENTS: [string, string][] = [
   ["Environment and session details", "Where the task took place, and how it was recorded."],
 ];
 
+/** MCAP channels we hold but deliver only when a customer asks for them. */
+export const MCAP_ADDONS: ReadonlySet<string> = new Set(["Task annotation"]);
+
 export const FAQS: [string, string][] = [
   ["How do I get the free sample?", "Leave your details. For Ego-centric we email you a Google Drive link right away. For Head + wrist we email you access as soon as your sample is ready."],
   ["What's in the sample?", "About 50 hours of recordings. Ego-centric comes as MCAP files, which already include the video. Head + wrist comes as MP4 videos with calibration."],
   ["How is the full dataset delivered?", "We put the data you picked in a private cloud bucket and email you its access keys."],
   ["How do I download it?", "With any S3-compatible tool, such as the AWS CLI or rclone. The email has the command."],
   ["How long does it take?", "You get a confirmation by email right away. Your access details follow when the data is ready; bigger selections take longer."],
-  ["Can I choose what I get?", "Yes. Pick your environments, then the skills you need inside each one."],
-  ["How is the data licensed?", "It's available for non-exclusive licensing."],
+  ["Can I choose what I get?", "Yes. Pick your environment types, then the skills you need inside each one."],
 ];
 
-const bySlug = <T extends { slug: string }>(list: T[]) =>
-  Object.fromEntries(list.map((x) => [x.slug, x])) as Record<string, T>;
+/**
+ * A lookup table with no prototype, so a name sent from outside like "__proto__",
+ * "constructor" or "toString" finds nothing instead of a built-in. These tables are
+ * what the request and preview checks trust.
+ */
+export function lookupTable<T>(entries: [string, T][]): Record<string, T> {
+  return Object.assign(Object.create(null) as Record<string, T>, Object.fromEntries(entries));
+}
+
+const bySlug = <T extends { slug: string }>(list: T[]) => lookupTable(list.map((x) => [x.slug, x] as [string, T]));
 
 export const DOMAIN_BY_SLUG = bySlug(DOMAINS);
 export const SKILL_BY_SLUG = bySlug(SKILLS);
-export const SETUP_BY_ID = Object.fromEntries(SETUPS.map((s) => [s.id, s])) as Record<SetupId, CaptureSetup>;
-export const DIFFICULTY_BY_ID = Object.fromEntries(DIFFICULTIES.map((d) => [d.id, d])) as Record<DifficultyId, (typeof DIFFICULTIES)[number]>;
+export const SETUP_BY_ID = lookupTable(SETUPS.map((s) => [s.id, s] as [string, CaptureSetup])) as Record<SetupId, CaptureSetup>;
+export const DIFFICULTY_BY_ID = lookupTable(DIFFICULTIES.map((d) => [d.id, d] as [string, (typeof DIFFICULTIES)[number]])) as Record<DifficultyId, (typeof DIFFICULTIES)[number]>;
 
 // Names for slugs from the episode sheet, including ones the catalog doesn't list yet.
 const prettySlug = (slug: string) => slug.replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase());

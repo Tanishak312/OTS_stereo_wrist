@@ -20,8 +20,21 @@ import { DEFAULT_ENVIRONMENT, activeEnvironments, difficultySummary, formatHours
 import { useInventory } from "./InventoryContext";
 import { Photo } from "../Photo";
 import { MoreDomainsDialog } from "./MoreDomainsDialog";
+import { StepPreview, useMinWidth, usePreviewSlugs } from "./Preview";
 import { SelectionPanel } from "./SelectionPanel";
 import { ArrowRight, CheckIcon, Chip, Eyebrow, SelectAllButton, StepLayout, Title } from "./ui";
+
+/**
+ * The preview card for steps 2-4 (Ego-centric clips only). Desktop puts it above the
+ * selection; a phone puts it after the step's own content so picking stays on top.
+ * Only one copy is ever mounted, so only one video loads.
+ */
+function useStepPreview(setup: Selection["setup"], picked: string[]) {
+  const wide = useMinWidth(1024);
+  const slugs = usePreviewSlugs();
+  const show = setup === "ego" && picked.some((e) => slugs.includes(e));
+  return { wide, preview: show ? <StepPreview picked={picked} /> : null };
+}
 
 function toggle<T>(list: T[], item: T): T[] {
   return list.includes(item) ? list.filter((x) => x !== item) : [...list, item];
@@ -128,13 +141,15 @@ export function EnvironmentsStep({ sel, onChange }: { sel: Selection; onChange: 
   const pickedInMore = moreDomains.filter((d) => sel.environments.includes(d.slug)).length;
   const closeMore = useCallback(() => setMoreOpen(false), []);
   const allPicked = available.length > 0 && available.every((s) => sel.environments.includes(s));
+  const { wide, preview } = useStepPreview(sel.setup, sel.environments);
 
   return (
     <StepLayout
       left={
         <>
-          <Eyebrow mobile="Step 2 · Environments" desktop="Step 02 — Environments" />
-          <Title>Pick the environments you need</Title>
+          <Eyebrow mobile="Step 2 · Environment types" desktop="Step 02 — Environment types" />
+          <Title>Pick the environment types you need</Title>
+          {wide && preview}
           <SelectionPanel sel={sel} step={2} />
         </>
       }
@@ -142,7 +157,7 @@ export function EnvironmentsStep({ sel, onChange }: { sel: Selection; onChange: 
         <>
           <div className="mb-2 flex animate-fade-up items-center justify-between gap-4 lg:mb-4">
             <p className="tabular text-[14px] text-muted lg:text-[17px]">
-              {sel.environments.length} of {available.length} environments selected
+              {sel.environments.length} of {available.length} environment types selected
             </p>
             <SelectAllButton
               all={allPicked}
@@ -197,7 +212,7 @@ export function EnvironmentsStep({ sel, onChange }: { sel: Selection; onChange: 
                 pickedInMore ? "border-brand/60 bg-brand-50/40" : "border-[#d6d9df] hover:border-subtle"
               }`}
             >
-              <span className="text-base font-medium lg:text-[25px] lg:leading-tight">+{moreDomains.length} more domains</span>
+              <span className="text-base font-medium lg:text-[25px] lg:leading-tight">+{moreDomains.length} more types</span>
               <span className="tabular mt-1 text-xs text-muted lg:text-[16px]">
                 {formatHours(hiddenHours)} h
                 {/* Keeps picks made in the panel visible from the grid. */}
@@ -218,6 +233,7 @@ export function EnvironmentsStep({ sel, onChange }: { sel: Selection; onChange: 
               />
             )}
           </div>
+          {!wide && preview}
         </>
       }
     />
@@ -314,6 +330,7 @@ export function TasksStep({ sel, onChange }: { sel: Selection; onChange: (s: Sel
   const diffOptions = DIFFICULTIES.filter((d) => (diffHours[d.id] ?? 0) > 0).map((d) => d.id);
   const allDiffs = diffOptions.length > 0 && diffOptions.every((d) => sel.difficulties.includes(d));
   const graded = !sel.setup || SETUP_BY_ID[sel.setup].graded;
+  const { wide: wideScreen, preview } = useStepPreview(sel.setup, activeEnvironments(sel));
 
   return (
     <StepLayout
@@ -321,6 +338,7 @@ export function TasksStep({ sel, onChange }: { sel: Selection; onChange: (s: Sel
         <>
           <Eyebrow mobile="Step 3 · Tasks (optional)" desktop="Step 03 — Tasks (optional)" />
           <Title>Narrow by task</Title>
+          {wideScreen && preview}
           <SelectionPanel sel={sel} step={3} />
         </>
       }
@@ -379,6 +397,7 @@ export function TasksStep({ sel, onChange }: { sel: Selection; onChange: (s: Sel
               </div>
             </section>
           )}
+          {!wideScreen && preview}
         </>
       }
     />
@@ -398,6 +417,7 @@ export function ReviewStep({ sel }: { sel: Selection }) {
   const environments = requestBreakdown(sel, inv);
   // Long lists take two columns, so "Select all" still reads as a list and not a wall.
   const wide = environments.length > 6;
+  const { wide: wideScreen, preview } = useStepPreview(sel.setup, activeEnvironments(sel));
 
   return (
     <StepLayout
@@ -405,6 +425,7 @@ export function ReviewStep({ sel }: { sel: Selection }) {
         <>
           <Eyebrow mobile="Step 4 · Review" desktop="Step 04 — Review" />
           <Title>Your dataset, ready to ship</Title>
+          {wideScreen && preview}
           <SelectionPanel sel={sel} step={4} />
         </>
       }
@@ -427,7 +448,7 @@ export function ReviewStep({ sel }: { sel: Selection }) {
 
           <section style={delay(160)} className="mt-4 animate-fade-up rounded-2xl border-[1.5px] border-line px-[19px] py-4 lg:mt-6 lg:rounded-[28px] lg:border-2 lg:px-[30px] lg:py-6">
             <h2 className="text-[15px] text-muted lg:text-[21px]">
-              {environments.length} environment{environments.length === 1 ? "" : "s"} and their skills
+              {environments.length} environment type{environments.length === 1 ? "" : "s"} and their skills
             </h2>
             <ul className={`mt-1 lg:mt-2 ${wide ? "lg:grid lg:grid-cols-2 lg:gap-x-10" : ""}`}>
               {environments.map((e) => {
@@ -457,6 +478,7 @@ export function ReviewStep({ sel }: { sel: Selection }) {
               })}
             </ul>
           </section>
+          {!wideScreen && preview}
         </>
       }
     />

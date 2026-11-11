@@ -2,12 +2,12 @@
 
 import { useRef, useState, type Ref } from "react";
 import { DATASET } from "@/lib/catalog";
-import { validateContact, type Contact, type RequestKind, type Selection } from "@/lib/selection";
+import { validateContact, type Contact, type ContactText, type RequestKind, type Selection } from "@/lib/selection";
 import { delay } from "@/lib/motion";
 import { SelectionPanel } from "./SelectionPanel";
 import { Eyebrow, StepLayout, Title } from "./ui";
 
-type Field = { key: keyof Contact; label: string; type: string; autoComplete: string; inputMode?: "email" | "tel" | "text"; required?: boolean };
+type Field = { key: ContactText; label: string; type: string; autoComplete: string; inputMode?: "email" | "tel" | "text"; required?: boolean };
 
 const FIELDS: Field[] = [
   { key: "fullName", label: "Full name", type: "text", autoComplete: "name", required: true },
@@ -45,14 +45,15 @@ export function ContactStep({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const firstBad = FIELDS.find((f) => errors[f.key])?.key;
+    const firstBad = FIELDS.find((f) => errors[f.key])?.key ?? (errors.forTraining ? "forTraining" : undefined);
     if (firstBad) {
-      setTouched(Object.fromEntries(FIELDS.map((f) => [f.key, true])));
+      setTouched({ ...Object.fromEntries(FIELDS.map((f) => [f.key, true])), forTraining: true });
       refs.current[firstBad]?.focus();
       return;
     }
     onSubmit();
   }
+  const trainingError = touched.forTraining ? errors.forTraining : undefined;
 
   return (
     <StepLayout
@@ -92,6 +93,50 @@ export function ContactStep({
               onBlur={() => setTouched((t) => ({ ...t, [f.key]: true }))}
             />
           ))}
+
+          {/* Required. Two real radio buttons, so arrow keys and screen readers work; neither is picked to start with. */}
+          <fieldset aria-describedby={trainingError ? "field-forTraining-error" : undefined}>
+            <legend className="block text-[12px] font-medium text-ink lg:text-[16px]">
+              Do you want this data for your model/robot training?<span className="text-ink"> *</span>
+            </legend>
+            <div className="mt-2 grid grid-cols-2 gap-3 lg:mt-1.5">
+              {([true, false] as const).map((v) => {
+                const on = contact.forTraining === v;
+                return (
+                  <label
+                    key={String(v)}
+                    className={`flex h-[55px] cursor-pointer items-center gap-3 rounded-xl border-[1.5px] px-[17px] text-[16px] transition-colors duration-150 lg:h-12 lg:rounded-[14px] lg:px-5 lg:text-[17px] ${
+                      on ? "border-brand bg-brand-50 font-medium text-ink" : trainingError ? "border-danger bg-surface" : "border-[#e5e7eb] bg-surface hover:border-subtle"
+                    }`}
+                  >
+                    <input
+                      ref={
+                        v
+                          ? (el) => {
+                              refs.current.forTraining = el;
+                            }
+                          : undefined
+                      }
+                      type="radio"
+                      name="forTraining"
+                      checked={on}
+                      onChange={() => {
+                        onChange({ ...contact, forTraining: v });
+                        setTouched((t) => ({ ...t, forTraining: true }));
+                      }}
+                      className="h-5 w-5 shrink-0 cursor-pointer accent-brand"
+                    />
+                    {v ? "Yes" : "No"}
+                  </label>
+                );
+              })}
+            </div>
+            {trainingError && (
+              <p id="field-forTraining-error" className="mt-1.5 text-sm text-danger lg:text-[14px]">
+                {trainingError}
+              </p>
+            )}
+          </fieldset>
 
           <p className="text-[14px] text-muted">By sending, you agree to our Privacy Policy &amp; Terms.</p>
           {submitError && (

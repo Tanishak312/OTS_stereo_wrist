@@ -18,6 +18,7 @@ import { CONTACT_FORM_ID, ContactStep, submitLabel } from "./ContactStep";
 import { Landing } from "./Landing";
 import { EnvironmentsStep, ReviewStep, SetupStep, TasksStep } from "./Steps";
 import { Success } from "./Success";
+import { PreviewTabProvider } from "./Preview";
 import { useInventory } from "./InventoryContext";
 import { ArrowRight, BottomBar, CONTAINER, PrimaryButton, Progress, RestartIcon, SecondaryButton } from "./ui";
 
@@ -51,6 +52,8 @@ export function Kiosk() {
   const [contact, setContact] = useState<Contact>(EMPTY_CONTACT);
   const [tokens, setTokens] = useState<Partial<Record<RequestKind, string>>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // The environment type shown in the preview card, kept the same from step 2 to step 4.
+  const [previewTab, setPreviewTab] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   // Which way the last navigation went, so the next screen slides in from the matching side.
   const [direction, setDirection] = useState<"forward" | "back">("forward");
@@ -76,6 +79,7 @@ export function Kiosk() {
     setHistory(["landing"]);
     setSel(EMPTY_SELECTION);
     setContact(EMPTY_CONTACT);
+    setPreviewTab(null);
     setTokens({});
     setSubmitError(null);
   }, []);
@@ -165,6 +169,7 @@ export function Kiosk() {
         className={`${CONTAINER} flex-1 pt-5 pb-8 outline-none lg:pt-10 lg:pb-10`}
       >
         {/* Keyed by screen so each step plays its entrance; the header and progress stay put. */}
+        <PreviewTabProvider value={[previewTab, setPreviewTab]}>
         <div key={screen} className={direction === "back" ? "animate-enter-back" : "animate-enter-forward"}>
         {screen === "setup" && <SetupStep sel={sel} onChange={setSel} />}
         {screen === "environments" && <EnvironmentsStep sel={sel} onChange={setSel} />}
@@ -194,6 +199,7 @@ export function Kiosk() {
           />
         )}
         </div>
+        </PreviewTabProvider>
       </main>
 
       {screen === "setup" && (
@@ -213,7 +219,7 @@ export function Kiosk() {
                 Continue <ArrowRight />
               </>
             ) : (
-              "Pick an environment"
+              "Pick an environment type"
             )}
           </PrimaryButton>
         </BottomBar>

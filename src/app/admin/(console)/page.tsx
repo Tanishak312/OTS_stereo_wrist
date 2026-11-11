@@ -4,7 +4,7 @@ import { KindBadge, StatusPill } from "@/components/admin/StatusPill";
 import { DOMAIN_BY_SLUG, SETUP_BY_ID } from "@/lib/catalog";
 import { formatDate, formatTime, loadRequests } from "@/lib/admin-data";
 import { formatHours, formatSize } from "@/lib/selection";
-import { needsReview, type OtsRequest } from "@/lib/status";
+import { intendedUse, needsReview, type OtsRequest } from "@/lib/status";
 import { STATUS_FILTERS } from "./filters";
 import { FilterBar } from "./FilterBar";
 
@@ -137,6 +137,9 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
                 </td>
                 <td className="px-4 py-3">
                   <KindBadge kind={r.kind} />
+                  {intendedUse(r).short && (
+                    <span className="mt-1 block text-xs whitespace-nowrap text-muted">{intendedUse(r).short}</span>
+                  )}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap">{SETUP_BY_ID[r.capture_setup]?.name ?? r.capture_setup}</td>
                 <td className="max-w-64 px-4 py-3">

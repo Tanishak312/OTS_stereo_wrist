@@ -12,7 +12,7 @@ and a dataset's bucket is filled by hand.
 
 ## 0. Before you start (once)
 
-- [ ] **Supabase**: SQL files 001–015 run, the Orion (with batch 6) and Axis indexes
+- [ ] **Supabase**: SQL files 001–016 run, the Orion (with batch 6) and Axis indexes
       imported. Check in the SQL editor:
       ```sql
       select capture_setup, count(*), round(sum(duration_s)/3600.0) as hours

@@ -2,6 +2,10 @@
 -- the episode index. Only run this if you really want the tables gone.
 -- (R2 is untouched either way; nothing here ever wrote to it.)
 
+-- 016_intended_use.sql (its columns go with ots_requests below)
+drop function if exists public.submit_ots_request(text, text, text[], text[], text[], integer, text, text, text, text, text, bigint, jsonb, boolean, boolean);
+drop function if exists public.submit_ots_request(text, text, text[], text[], text[], integer, text, text, text, text, text, bigint, jsonb, boolean);
+
 -- 014_manual_delivery.sql (its columns go with ots_requests below; the app's old
 -- delivery functions stay switched off until they're dropped below)
 drop function if exists public.ots_record_access_sent(text, text, text);

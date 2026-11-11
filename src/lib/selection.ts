@@ -152,7 +152,7 @@ export function environmentsList(sel: Selection): string {
 /** Environments for a one-line summary: the names while they fit (up to two), a count after that. */
 export function environmentsShort(sel: Selection): string {
   const n = activeEnvironments(sel).length;
-  return n <= 2 ? environmentNames(sel).join(", ") : `${n} environments`;
+  return n <= 2 ? environmentNames(sel).join(", ") : `${n} environment types`;
 }
 
 export function formatHours(h: number): string {
@@ -172,9 +172,14 @@ export type Contact = {
   email: string;
   phone: string;
   company: string;
+  /** "Do you want this data for your model/robot training?" Required; null until answered. */
+  forTraining: boolean | null;
 };
 
-export const EMPTY_CONTACT: Contact = { fullName: "", email: "", phone: "", company: "" };
+/** The typed-in contact fields (everything but the Yes / No question). */
+export type ContactText = Exclude<keyof Contact, "forTraining">;
+
+export const EMPTY_CONTACT: Contact = { fullName: "", email: "", phone: "", company: "", forTraining: null };
 
 export type RequestKind = "dataset" | "sample";
 
@@ -198,6 +203,8 @@ export function validateContact(c: Contact): Partial<Record<keyof Contact, strin
 
   const phone = c.phone.trim();
   if (phone && !/^\+?[\d\s\-()]{7,20}$/.test(phone)) errors.phone = "Use digits only, with an optional + country code.";
+
+  if (typeof c.forTraining !== "boolean") errors.forTraining = "Choose Yes or No.";
   return errors;
 }
 
@@ -205,8 +212,8 @@ export function validateContact(c: Contact): Partial<Record<keyof Contact, strin
 export function validatePayload(p: RequestPayload): string | null {
   if (p.kind !== "dataset" && p.kind !== "sample") return "Unknown request type.";
   if (!p.setup || !SETUP_BY_ID[p.setup]) return "Choose a capture setup.";
-  if (!Array.isArray(p.environments) || p.environments.length === 0) return "Pick at least one environment.";
-  if (p.environments.some((e) => !DOMAIN_BY_SLUG[e])) return "One of the environments is not in the catalog.";
+  if (!Array.isArray(p.environments) || p.environments.length === 0) return "Pick at least one environment type.";
+  if (p.environments.some((e) => !DOMAIN_BY_SLUG[e])) return "One of the environment types is not in the catalog.";
   if (!p.skills || typeof p.skills !== "object" || Array.isArray(p.skills)) return "One of the skills is not in the catalog.";
   if (Object.values(p.skills).some((list) => !Array.isArray(list) || list.some((s) => !SKILL_BY_SLUG[s]))) return "One of the skills is not in the catalog.";
   if (!Array.isArray(p.difficulties) || p.difficulties.some((d) => !DIFFICULTY_BY_ID[d])) return "Unknown difficulty.";

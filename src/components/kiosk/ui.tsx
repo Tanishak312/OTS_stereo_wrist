@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 // Desktop sizes (lg:) are measured from the 1440-wide Figma frames; the base
 // classes are the mobile layout until mobile/tablet frames arrive.
@@ -212,11 +212,33 @@ export function Title({ children }: { children: ReactNode }) {
 }
 
 /** Desktop: heading + selection on the left (4/11), which stays in view while the right (7/11) scrolls. Mobile: stacked. */
+/** Bottom bar (97 px) plus the sticky column's 24 px top offset and a little air. */
+const STICKY_ROOM = 97 + 24 + 16;
+
 export function StepLayout({ left, right }: { left: ReactNode; right: ReactNode }) {
+  // The left column stays put while the cards scroll, but only if it fits: a taller one
+  // would hide its bottom (step 2's Previous / Next) behind the bottom bar, so it scrolls.
+  const leftRef = useRef<HTMLDivElement>(null);
+  const [fits, setFits] = useState(true);
+  useLayoutEffect(() => {
+    const el = leftRef.current;
+    if (!el) return;
+    const check = () => setFits(el.offsetHeight <= window.innerHeight - STICKY_ROOM);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    window.addEventListener("resize", check);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", check);
+    };
+  }, []);
   return (
-    <div className="lg:grid lg:grid-cols-[4fr_7fr] lg:items-start lg:gap-16">
-      <div className="lg:sticky lg:top-6">{left}</div>
-      <div className="mt-6 lg:mt-0">{right}</div>
+    <div className="lg:grid lg:grid-cols-[5fr_7fr] lg:items-start lg:gap-16">
+      <div ref={leftRef} className={`min-w-0 ${fits ? "lg:sticky lg:top-6" : ""}`}>
+        {left}
+      </div>
+      <div className="mt-6 min-w-0 lg:mt-0">{right}</div>
     </div>
   );
 }

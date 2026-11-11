@@ -21,7 +21,7 @@ export function SelectionPanel({ sel, step, sample = false }: { sel: Selection; 
 
   const rows: [string, string][] = [
     ["Capture setup", setup?.name ?? "—"],
-    ["Environments", sample ? "All environments" : step >= 2 ? environmentsList(sel) : "—"],
+    ["Environment types", sample ? "All environment types" : step >= 2 ? environmentsList(sel) : "—"],
     ["Skills", sample ? "All skills" : step >= 3 ? skillsSummary(sel, inv) : "—"],
   ];
   // Head + wrist recordings aren't graded.
@@ -33,7 +33,7 @@ export function SelectionPanel({ sel, step, sample = false }: { sel: Selection; 
       : inv.source !== "live"
         ? "Estimate. We'll confirm the exact hours with your delivery."
         : step >= 2 && sel.environments.length > 0 && hours <= 0
-          ? "Nothing matches these picks. Widen your environments or skills."
+          ? "Nothing matches these picks. Widen your environment types or skills."
           : null;
 
   return (

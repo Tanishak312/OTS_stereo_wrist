@@ -147,6 +147,13 @@ token, so replacing it means every customer's old key stops working. Needs
 [supabase/015_head_wrist_sample_bucket.sql](supabase/015_head_wrist_sample_bucket.sql), run before the
 code that uses it.
 
+**Model/robot training:** the details form asks "Do you want this data for your model/robot
+training?", Yes or No, and won't send without an answer. The admin list shows it under the type,
+and the request page as **Model/robot training**; requests made before the question read **Not
+asked**. (It replaced an earlier "for your lab?" checkbox; any answers to that stay in
+`for_own_lab` and still show.) Needs [supabase/016_intended_use.sql](supabase/016_intended_use.sql),
+run before the code that sends it.
+
 **Ego-centric sample** ([src/lib/delivery.ts](src/lib/delivery.ts)): right after submit, Resend emails the
 visitor the Google Drive folder (`SAMPLE_DRIVE_URL_EGO`). It's a fixed folder of MCAP
 files, the same for everyone, so what they picked on the kiosk doesn't change what they get; it's still

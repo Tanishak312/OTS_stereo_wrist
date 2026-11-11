@@ -23,7 +23,7 @@ export async function submitRequest(payload: RequestPayload): Promise<SubmitResu
   const inventory = await loadInventory();
   const hours = matchingHours(payload, inventory);
   if (hours <= 0) {
-    return { ok: false, error: "No recordings match these choices yet. Go back and widen your environments or tasks." };
+    return { ok: false, error: "No recordings match these choices yet. Go back and widen your environment types or skills." };
   }
   const wholeHours = Math.max(1, Math.round(hours)); // the column is whole hours
   // Kept on a full-dataset request: what the admin fills the bucket against. A sample is the same for everyone.
@@ -45,6 +45,7 @@ export async function submitRequest(payload: RequestPayload): Promise<SubmitResu
     p_source: "kiosk",
     p_matching_bytes: bytes,
     p_breakdown: dataset ? requestBreakdown(payload, inventory) : null,
+    p_for_training: payload.forTraining === true,
   });
 
   if (error || typeof data !== "string") {

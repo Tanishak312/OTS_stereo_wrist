@@ -141,3 +141,22 @@ body {
 :root {
   --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+/* Preview seek bar (components/kiosk/Preview.tsx): the track is drawn by its background. */
+.preview-seek::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #fff;
+}
+.preview-seek::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 9999px;
+  background: #fff;
+}
+.preview-seek:disabled::-webkit-slider-thumb {
+  visibility: hidden;
+}

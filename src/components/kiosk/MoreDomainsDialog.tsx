@@ -87,7 +87,7 @@ export function MoreDomainsDialog({
               {domains.length} more · {formatHours(totalHours)} h
             </p>
             <h2 id="more-domains-title" className="mt-2 text-2xl font-semibold tracking-tight lg:text-[36px] lg:leading-tight lg:font-medium">
-              More environments
+              More environment types
             </h2>
           </div>
           <button

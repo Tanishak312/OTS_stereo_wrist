@@ -33,7 +33,7 @@ function Badge({ className = "" }: { className?: string }) {
       className={`inline-flex items-center gap-1.5 rounded-md bg-[#d92d20] px-2 py-1 font-mono text-[11px] tracking-[0.12em] text-white uppercase md:gap-2 md:px-3 md:py-1.5 md:text-[12px] ${className}`}
     >
       <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden="true" />
-      {`${formatHours(h.hours)} h · ${h.setups} setup${h.setups === 1 ? "" : "s"} · ${h.domains} domains`}
+      {`${formatHours(h.hours)} h · ${h.setups} setup${h.setups === 1 ? "" : "s"} · ${h.domains} environment types`}
     </span>
   );
 }
@@ -58,7 +58,7 @@ function Stat({ value, suffix = "", label, index, mobile }: { value: number; suf
         {formatHours(n)}
         {suffix}
       </dd>
-      <dd className={mobile ? "mt-2 font-mono text-[12px] tracking-[0.18em] text-white/50 uppercase md:mt-3 md:text-[14px]" : "mt-4 font-mono text-[16px] tracking-[0.15em] text-muted uppercase"}>
+      <dd className={mobile ? "mt-2 font-mono text-[12px] tracking-[0.18em] text-muted uppercase md:mt-3 md:text-[14px]" : "mt-4 font-mono text-[16px] tracking-[0.15em] text-muted uppercase"}>
         {label}
       </dd>
     </div>
@@ -87,13 +87,13 @@ export function Landing({ onStart }: { onStart: () => void }) {
   return (
     <div className={`relative min-h-dvh overflow-hidden bg-white ${leaving ? "animate-leave" : ""}`}>
       {/* Mobile (390 frame) and tablet (md:, 834 frame): the tablet fills the width and centres the content vertically. */}
-      <div className="bg-black text-white lg:hidden">
+      <div className="bg-white text-ink lg:hidden">
         <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-5 pt-6 pb-10 md:max-w-none md:px-12 md:pt-10 md:pb-14">
           <div className="animate-fade-in">
-            <Logo inverted className="h-8 self-start md:h-10" />
+            <Logo className="h-8 self-start md:h-10" />
           </div>
           <div className="mt-6 md:my-auto md:py-8">
-            <p className="animate-fade-up font-mono text-[12px] tracking-[0.2em] text-white/60 uppercase md:text-[14px]" style={delay(80)}>
+            <p className="animate-fade-up font-mono text-[12px] tracking-[0.2em] text-[#1f6fe5] uppercase md:text-[14px]" style={delay(80)}>
               Off-the-shelf egocentric data
             </p>
             <h1
@@ -102,14 +102,14 @@ export function Landing({ onStart }: { onStart: () => void }) {
             >
               {formatHours(h.hours)} hours of robot-ready data.
             </h1>
-            <p className="mt-5 animate-fade-up text-[17px] leading-snug text-white/85 md:mt-6 md:text-[22px]" style={delay(240)}>
-              Pre-recorded, QC&rsquo;d data across {h.domains} domains.
+            <p className="mt-5 animate-fade-up text-[17px] leading-snug text-muted md:mt-6 md:text-[22px]" style={delay(240)}>
+              Pre-recorded, QC&rsquo;d data across {h.domains} environment types.
             </p>
 
             <button
               type="button"
               onClick={start}
-              className="group/btn relative mt-6 block h-[220px] w-full animate-rise-in overflow-hidden rounded-[22px] text-left transition-transform duration-200 active:scale-[0.99] md:mt-10 md:h-auto md:aspect-[2.25/1] md:rounded-[28px]"
+              className="group/btn relative mt-6 block h-[220px] w-full animate-rise-in overflow-hidden rounded-[22px] text-left text-white transition-transform duration-200 active:scale-[0.99] md:mt-10 md:h-auto md:aspect-[2.25/1] md:rounded-[28px]"
               style={delay(320)}
             >
               <Photo
@@ -127,7 +127,7 @@ export function Landing({ onStart }: { onStart: () => void }) {
               </span>
             </button>
 
-            <dl className="mt-5 grid grid-cols-3 gap-4 border-t border-white/15 pt-5 md:mt-10 md:pt-8">
+            <dl className="mt-5 grid grid-cols-3 gap-4 border-t border-line pt-5 md:mt-10 md:pt-8">
               {STATS.map((s, i) => (
                 <Stat key={s.label} {...s} index={i} mobile />
               ))}
@@ -161,7 +161,7 @@ export function Landing({ onStart }: { onStart: () => void }) {
               {formatHours(h.hours)} hours of robot-ready data.
             </h1>
             <p className="mt-8 animate-fade-up text-[20px] text-muted" style={delay(220)}>
-              Pre-recorded, QC&rsquo;d data across {h.domains} domains.
+              Pre-recorded, QC&rsquo;d data across {h.domains} environment types.
             </p>
             <hr className="mt-6 origin-left animate-draw-x border-0 border-t-[3px] border-[#c9ced6]" style={delay(300)} />
             <dl className="mt-8 flex flex-wrap gap-x-14 gap-y-6">

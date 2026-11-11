@@ -80,12 +80,8 @@ export function ReviewPanel({
     return (
       <div className="text-sm">
         <ol className="list-decimal space-y-2 pl-4">
-          <li>
-            Use the shared head + wrist sample bucket in R2.{" "}
-            <span className="font-medium">Never copy a whole episode folder into it:</span> it holds operator names, phone numbers and locations.
-          </li>
+          <li>Use the shared head + wrist sample bucket in R2.</li>
           <li>Use an R2 API token that is Object Read only, for this bucket only.</li>
-          <li>Paste its S3 credentials here.</li>
         </ol>
         <div className="mt-4">
           <AccessForm token={token} email={email} initialBucket="" />
@@ -209,12 +205,8 @@ function AccessSteps({ token, email }: { token: string; email: string }) {
             Download the file list (.csv)
           </a>
         </li>
-        <li>
-          Create a bucket in R2 and copy those files into it.{" "}
-          <span className="font-medium">Never copy a whole episode folder:</span> it holds operator names, phone numbers and locations.
-        </li>
+        <li>Create a bucket in R2 and copy those files into it.</li>
         <li>Create an R2 API token: Object Read only, for this bucket only.</li>
-        <li>Paste its S3 credentials here.</li>
       </ol>
       <div className="mt-4">
         <AccessForm token={token} email={email} initialBucket="" />

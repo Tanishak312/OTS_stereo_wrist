@@ -59,7 +59,7 @@ ${body}
 /** Ego-centric free sample: the Google Drive folder, the same one for everyone. */
 export function sampleLinkEmail(p: { to: string; name: string; link: string }): Email {
   const first = firstName(p.name);
-  const intro = "Your free sample of the Awign stereo egocentric dataset is ready: MCAP recordings from across our environments, about 50 hours in all.";
+  const intro = "Your free sample of the Awign stereo egocentric dataset is ready: MCAP recordings from across our environment types, about 50 hours in all.";
   const how = "Each MCAP file holds the session's video along with its other streams, so that's all you need. Download the files you want from the folder, then open them in Foxglove or any MCAP reader.";
   const text = [`Hi ${first},`, "", intro, "", `Open the Google Drive folder: ${p.link}`, "", how, "", "— Awign Robotics Data"].join("\n");
   const html = page(

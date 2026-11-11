@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, type CSSProperties, type ReactNode } from "react";
-import { DEVICES, FAQS, MCAP_CONTENTS, SKILLS, domainName, skillName } from "@/lib/catalog";
+import { DEVICES, FAQS, MCAP_ADDONS, MCAP_CONTENTS, SKILLS, domainName, skillName } from "@/lib/catalog";
 import { hoursBy, skillsPerDomain } from "@/lib/inventory";
 import { stagger, useInView } from "@/lib/motion";
 import { formatHours, formatHoursFine } from "@/lib/selection";
 import { Logo } from "../Logo";
 import { Photo } from "../Photo";
 import { useInventory } from "./InventoryContext";
+import { PreviewVideo, useMinWidth, usePreviewSlugs } from "./Preview";
 import { ArrowRight, CONTAINER } from "./ui";
 
 const CTA_IMAGE = "/images/hero-section-explore-dataset-2.jpeg";
@@ -55,9 +56,10 @@ function Heading({ eyebrow, title, intro }: { eyebrow: string; title: string; in
   );
 }
 
-/** The skills recorded in one environment, largest first. Uses the same short names as the skills step. */
-function EnvironmentSkills({ domain, open, play }: { domain: string; open: boolean; play: boolean }) {
+/** The skills recorded in one environment type, largest first. Uses the same short names as the skills step. */
+function SkillList({ domain, play, large = false, limit }: { domain: string; play: boolean; large?: boolean; limit?: number }) {
   const inv = useInventory();
+  const [all, setAll] = useState(false);
   const hours = hoursBy(inv, "skill", { domains: [domain] });
   const total = Object.values(hours).reduce((a, b) => a + b, 0);
   const slugs = Object.keys(hours)
@@ -65,45 +67,129 @@ function EnvironmentSkills({ domain, open, play }: { domain: string; open: boole
     .sort((a, b) => hours[b] - hours[a]);
 
   return (
+    <>
+      <p className={`flex flex-wrap items-baseline gap-x-3 font-semibold ${large ? "text-[24px] lg:text-[28px]" : "text-[16px] lg:text-[17px]"}`}>
+        {domainName(domain)}
+        <span className={`tabular font-normal text-muted ${large ? "text-[16px] lg:text-[18px]" : "text-[14px]"}`}>
+          {slugs.length} skill{slugs.length === 1 ? "" : "s"} · {formatHours(total)} h
+        </span>
+      </p>
+      <ul className={`flex flex-wrap ${large ? "mt-4 gap-2" : "mt-3 gap-1.5"}`}>
+        {(limit && !all ? slugs.slice(0, limit) : slugs).map((s, i) => (
+          <li key={s} className={`rounded-lg bg-surface px-3 py-1.5 text-[14px] ${large ? "lg:text-[15px]" : ""} ${play ? "animate-fade-up" : ""}`} style={stagger(i)}>
+            {SKILLS.find((x) => x.slug === s)?.short ?? skillName(s)} <span className="tabular text-muted">{formatHoursFine(hours[s])} h</span>
+          </li>
+        ))}
+        {limit !== undefined && slugs.length > limit && (
+          <li>
+            <button
+              type="button"
+              onClick={() => setAll(!all)}
+              aria-expanded={all}
+              className="inline-flex min-h-[34px] items-center rounded-lg px-3 py-1.5 text-[14px] font-medium text-brand hover:bg-brand-50"
+            >
+              {all ? "Show less" : `...more (${slugs.length - limit})`}
+            </button>
+          </li>
+        )}
+      </ul>
+    </>
+  );
+}
+
+/** Phones: a picked environment type opens right under its pill, with its clip on top. */
+function EnvironmentSkills({ domain, open, play }: { domain: string; open: boolean; play: boolean }) {
+  const hasPreview = usePreviewSlugs().includes(domain);
+  return (
     <Collapse open={open}>
       <div className="pt-2">
         <div className="rounded-2xl border border-line bg-white p-4 lg:p-5">
-          <p className="flex flex-wrap items-baseline gap-x-3 text-[16px] font-semibold lg:text-[17px]">
-            {domainName(domain)}
-            <span className="tabular text-[14px] font-normal text-muted">
-              {slugs.length} skill{slugs.length === 1 ? "" : "s"} · {formatHours(total)} h
-            </span>
-          </p>
-          <ul className="mt-3 flex flex-wrap gap-1.5">
-            {slugs.map((s, i) => (
-              <li
-                key={s}
-                className={`rounded-lg bg-surface px-3 py-1.5 text-[14px] ${open && play ? "animate-fade-up" : ""}`}
-                style={stagger(i)}
-              >
-                {SKILLS.find((x) => x.slug === s)?.short ?? skillName(s)} <span className="tabular text-muted">{formatHoursFine(hours[s])} h</span>
-              </li>
-            ))}
-          </ul>
+          {/* Mounted only while open, so a closed pill never loads its video. */}
+          {open && hasPreview && <PreviewVideo slug={domain} className="mb-4" />}
+          <SkillList domain={domain} play={open && play} limit={5} />
         </div>
       </div>
     </Collapse>
   );
 }
 
-function Coverage({ environments, hours, skills }: { environments: string[]; hours: Record<string, number>; skills: Record<string, number> }) {
+/**
+ * Wider screens: one panel under the pills. A tab per picked environment type;
+ * the shown one plays its clip beside its skills.
+ */
+function CoveragePanel({ picked, active, onShow, play }: { picked: string[]; active: string; onShow: (d: string) => void; play: boolean }) {
+  const hasPreview = usePreviewSlugs().includes(active);
+  return (
+    <section aria-label="Preview" className="mt-8 animate-fade-up rounded-[28px] border border-line bg-white p-6 lg:mt-10 lg:p-10">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+        <p className="font-mono text-[12px] tracking-[0.18em] text-[#1f6fe5] uppercase lg:text-[13px]">{hasPreview ? "Preview" : "Skills"}</p>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Picked environment types">
+          {picked.map((d) => {
+            const on = d === active;
+            return (
+              <button
+                key={d}
+                type="button"
+                aria-pressed={on}
+                onClick={() => onShow(d)}
+                className={`h-11 rounded-full border px-5 text-[15px] transition-colors duration-150 lg:text-[16px] ${
+                  on ? "border-ink bg-ink text-white" : "border-line bg-white text-ink hover:border-subtle"
+                }`}
+              >
+                {domainName(d)}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className={`mt-6 grid gap-8 lg:mt-8 lg:gap-12 ${hasPreview ? "lg:grid-cols-2" : ""}`}>
+        {hasPreview && <PreviewVideo key={active} slug={active} className="min-w-0 self-start" />}
+        <div key={`s-${active}`} className="min-w-0">
+          <SkillList domain={active} play={play} large />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** Phones list only the biggest few environment types, then send people into the steps for the rest. */
+const PHONE_COUNT = 4;
+
+function Coverage({
+  environments,
+  hours,
+  skills,
+  onStart,
+}: {
+  environments: string[];
+  hours: Record<string, number>;
+  skills: Record<string, number>;
+  onStart: () => void;
+}) {
   const [picked, setPicked] = useState<string[]>([]);
+  // The one shown in the panel: the last picked, or the tab chosen after.
+  const [active, setActive] = useState<string | null>(null);
   const [listRef, seen] = useInView<HTMLUListElement>();
-  const toggle = (d: string) => setPicked((p) => (p.includes(d) ? p.filter((x) => x !== d) : [...p, d]));
+  // Phones open each pick under its pill; wider screens use one panel. Only one is mounted.
+  const wide = useMinWidth(768);
+  const anyPreview = usePreviewSlugs().length > 0;
+  const toggle = (d: string) => {
+    const on = picked.includes(d);
+    const next = on ? picked.filter((x) => x !== d) : [...picked, d];
+    setPicked(next);
+    setActive(on ? (active === d ? (next[next.length - 1] ?? null) : active) : d);
+  };
+  const shown = active && picked.includes(active) ? active : (picked[picked.length - 1] ?? null);
 
   return (
     <>
-      {/* Phones stack the pills, so each one's skills open right under it; wider screens show them all below the pills. */}
-      <ul ref={listRef} aria-label="Environments" className="mt-8 md:flex md:flex-wrap md:gap-2.5 lg:mt-10">
+      {/* Phones stack the pills, so each one's skills open right under it; wider screens show them all below the pills.
+          Phones show the first few only (hidden by CSS, so desktop never flashes the short list). */}
+      <ul ref={listRef} aria-label="Environment types" className="mt-8 md:flex md:flex-wrap md:gap-2.5 lg:mt-10">
         {environments.map((d, i) => {
           const on = picked.includes(d);
           return (
-            <li key={d} className="mb-2 md:contents">
+            <li key={d} className={i < PHONE_COUNT ? "mb-2 md:contents" : "hidden md:contents"}>
               <button
                 type="button"
                 aria-pressed={on}
@@ -119,26 +205,33 @@ function Coverage({ environments, hours, skills }: { environments: string[]; hou
                   {skills[d]} skill{skills[d] === 1 ? "" : "s"}
                 </span>
               </button>
-              <div className="md:hidden">
-                <EnvironmentSkills domain={d} open={on} play={seen} />
-              </div>
+              {!wide && <EnvironmentSkills domain={d} open={on} play={seen} />}
             </li>
           );
         })}
       </ul>
-      <div className="mt-2 hidden md:block" aria-live="polite">
-        <Collapse open={!environments.some((d) => picked.includes(d))}>
-          <p className="pt-2 text-[15px] text-muted">Select an environment to see its skills.</p>
-        </Collapse>
-        {environments.map((d) => (
-          <EnvironmentSkills key={d} domain={d} open={picked.includes(d)} play={seen} />
-        ))}
-      </div>
+      {environments.length > PHONE_COUNT && (
+        <button
+          type="button"
+          onClick={onStart}
+          className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-brand bg-white px-5 text-[15px] font-semibold text-brand transition-colors hover:bg-brand-50 active:scale-[0.99] md:hidden"
+        >
+          Explore more <ArrowRight className="h-4 w-4" />
+        </button>
+      )}
+      {wide && (
+        <div className="mt-2" aria-live="polite">
+          <Collapse open={!shown}>
+            <p className="pt-2 text-[15px] text-muted">Select an environment type to {anyPreview ? "watch a sample and " : ""}see its skills.</p>
+          </Collapse>
+          {shown && <CoveragePanel picked={picked} active={shown} onShow={setActive} play={seen} />}
+        </div>
+      )}
     </>
   );
 }
 
-function McapItem({ title, detail, index }: { title: string; detail: string; index: number }) {
+function McapItem({ title, detail, index, addon = false }: { title: string; detail: string; index: number; addon?: boolean }) {
   const [ref, seen] = useInView<HTMLLIElement>();
   return (
     <li ref={ref} className={`group ${seen ? "animate-fade-up" : "opacity-0"}`} style={stagger(index)}>
@@ -146,8 +239,18 @@ function McapItem({ title, detail, index }: { title: string; detail: string; ind
       <p aria-hidden="true" className={`tabular mt-5 text-[34px] leading-none font-light text-[#1f6fe5] transition-[translate] duration-300 ${EASE} group-hover:translate-x-1 lg:text-[42px]`}>
         {String(index + 1).padStart(2, "0")}
       </p>
-      <p className="mt-4 text-[17px] font-semibold lg:text-[19px]">{title}</p>
-      <p className="mt-1.5 text-[15px] leading-snug text-muted">{detail}</p>
+      <p className="mt-4 text-[17px] font-semibold lg:text-[19px]">
+        {title}
+        {addon && (
+          <span className="ml-2 inline-block rounded bg-black px-1.5 py-0.5 align-middle font-mono text-[11px] font-semibold tracking-[0.12em] text-white">
+            ADDON
+          </span>
+        )}
+      </p>
+      <p className="mt-1.5 text-[15px] leading-snug text-muted">
+        {detail}
+        {addon && " Delivered on request."}
+      </p>
     </li>
   );
 }
@@ -217,12 +320,12 @@ function ExploreCard({ totalHours, onStart }: { totalHours: number; onStart: () 
 /** Below the hero: what we record with, what's covered, what an MCAP holds, and how delivery works. */
 export function LandingDetails({ onStart }: { onStart: () => void }) {
   const inv = useInventory();
+  const anyPreview = usePreviewSlugs().length > 0;
   const hours = hoursBy(inv, "domain");
   const skills = skillsPerDomain(inv);
   const environments = Object.keys(hours)
     .filter((d) => hours[d] > 0)
     .sort((a, b) => hours[b] - hours[a]);
-  const allSkills = new Set(inv.cells.filter((c) => c[5] > 0).map((c) => c[2])).size;
 
   return (
     <div className="bg-white text-ink">
@@ -262,10 +365,10 @@ export function LandingDetails({ onStart }: { onStart: () => void }) {
         <div className={`${CONTAINER} py-14 lg:py-24`}>
           <Heading
             eyebrow="Coverage"
-            title={`${environments.length} environments, ${allSkills} skills`}
-            intro="Real workplaces and homes. Select an environment to see its skills."
+            title={`${environments.length} environment types with multiple skills`}
+            intro={`Real workplaces and homes, grouped by type. Select one to ${anyPreview ? "watch a sample and " : ""}see its skills.`}
           />
-          <Coverage environments={environments} hours={hours} skills={skills} />
+          <Coverage environments={environments} hours={hours} skills={skills} onStart={onStart} />
         </div>
       </section>
 
@@ -277,7 +380,7 @@ export function LandingDetails({ onStart }: { onStart: () => void }) {
         />
         <ol className="mt-8 grid gap-x-12 gap-y-8 sm:grid-cols-2 lg:mt-10 lg:grid-cols-3 lg:gap-y-12">
           {MCAP_CONTENTS.map(([title, detail], i) => (
-            <McapItem key={title} title={title} detail={detail} index={i} />
+            <McapItem key={title} title={title} detail={detail} index={i} addon={MCAP_ADDONS.has(title)} />
           ))}
         </ol>
       </section>

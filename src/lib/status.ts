@@ -1,3 +1,4 @@
+import { lookupTable } from "./catalog";
 import type { BreakdownEnvironment } from "./selection";
 
 export type RequestStatus = "submitted" | "in_review" | "approved" | "rejected" | "sample_sent";
@@ -10,7 +11,7 @@ export const STATUSES: { id: RequestStatus; label: string; tone: "info" | "warn"
   { id: "sample_sent", label: "Sample sent", tone: "neutral" },
 ];
 
-export const STATUS_BY_ID = Object.fromEntries(STATUSES.map((s) => [s.id, s])) as Record<
+export const STATUS_BY_ID = lookupTable(STATUSES.map((s) => [s.id, s] as [string, (typeof STATUSES)[number]])) as Record<
   RequestStatus,
   (typeof STATUSES)[number]
 >;
@@ -29,6 +30,19 @@ export function statusView(status: RequestStatus, kind: RequestKind) {
 /** A head + wrist sample has no Drive folder: its first email says it's being prepared, and an admin sends a shared bucket's keys later. */
 export function sampleByBucket(r: { kind: RequestKind; capture_setup: string }) {
   return r.kind === "sample" && r.capture_setup === "head_wrist";
+}
+
+/**
+ * The customer's answer to "Do you want this data for your model/robot training?":
+ * short for the table, long for the request page. Requests from before it may carry
+ * the earlier "for your lab" answer instead.
+ */
+export function intendedUse(r: { for_training?: boolean | null; for_own_lab?: boolean | null }) {
+  if (r.for_training === true) return { short: "Training: Yes", long: "Yes, for model/robot training" };
+  if (r.for_training === false) return { short: "Training: No", long: "No, not for model/robot training" };
+  if (r.for_own_lab === true) return { short: "Own lab", long: "Own lab (asked before the training question)" };
+  if (r.for_own_lab === false) return { short: "Licensing", long: "Licensing to others (asked before the training question)" };
+  return { short: null, long: "Not asked (request made before this question)" };
 }
 
 /** Dataset requests that still need an admin decision. */
@@ -56,6 +70,9 @@ export type OtsRequest = {
   access_bucket: string | null;
   access_key_id: string | null;
   access_sent_at: string | null;
+  // From 016_intended_use.sql. Null on requests made before each question existed.
+  for_training?: boolean | null;
+  for_own_lab?: boolean | null;
   full_name: string;
   email: string;
   phone: string | null;

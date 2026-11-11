@@ -4,7 +4,7 @@ import { DIFFICULTY_BY_ID, SETUP_BY_ID, deliveryContents, domainName, skillName 
 import { formatDateTime, loadRequest } from "@/lib/admin-data";
 import { loadInventory } from "@/lib/inventory-server";
 import { formatHours, formatHoursFine, formatSize, requestBreakdown, type BreakdownEnvironment } from "@/lib/selection";
-import { sampleByBucket, statusView } from "@/lib/status";
+import { intendedUse, sampleByBucket, statusView } from "@/lib/status";
 import { CustomerEmail, ReviewPanel } from "./ReviewPanel";
 
 type Params = { token: string };
@@ -101,6 +101,7 @@ export default async function RequestPage({
               />
               <Item label="Phone" value={r.phone ?? "—"} />
               <Item label="Company" value={r.company ?? "—"} />
+              <Item label="Model/robot training" value={intendedUse(r).long} />
             </dl>
           </section>
 
