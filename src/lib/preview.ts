@@ -1,5 +1,5 @@
 import "server-only";
-import { DOMAINS, DOMAIN_BY_SLUG } from "./catalog";
+import { DOMAINS, DOMAIN_BY_SLUG, type SetupId } from "./catalog";
 import { encodeKeyPath, encodeQuery, signedGetHeaders } from "./r2-sign";
 
 // Preview videos, one or more per environment type, played on the site from
@@ -45,35 +45,46 @@ function misconfigured(why: string): null {
   return null;
 }
 
-// Each environment type has a folder in the preview bucket holding one or more clips:
-//   home/home.mp4      clip 1 (always first)
-//   home/home-2.mp4    clip 2, then any other .mp4 in the folder in name order
-// The server lists the bucket to see what is there, so adding or removing a clip needs no
-// code change. The browser asks for /api/preview/<slug>?clip=<n> and never learns a file name.
+// Each capture setup and environment type has a folder in the preview bucket holding one or more clips:
+//   home/home.mp4                 Ego-centric, clip 1 (always first)
+//   home/home-2.mp4               clip 2, then any other .mp4 in the folder in name order
+//   head-wrist/home/home.mp4      Head + wrist (head stereo on top, both wrists below), same naming
+// The server lists the bucket to see what is there, so adding or removing a clip needs no code
+// change. The browser asks for /api/preview/<slug>?setup=<setup>&clip=<n> and never learns a file name.
+
+/** Where each setup's folders start in the bucket. Ego-centric was first, so it sits at the top. */
+const SETUP_FOLDER: Readonly<Record<SetupId, string>> = { ego: "", head_wrist: "head-wrist/" };
+const SETUP_IDS = Object.keys(SETUP_FOLDER) as SetupId[];
 
 /** How long a listing is trusted before the bucket is listed again. */
 const LIST_TTL_MS = 5 * 60_000;
 /** After a failed listing, how long before trying again (the last good listing, or the fallback, serves meanwhile). */
 const LIST_RETRY_MS = 60_000;
 
-type Clips = Record<string, string[]>;
+type Clips = Record<SetupId, Record<string, string[]>>;
 let listed: { at: number; ttl: number; clips: Clips } | null = null;
 let listing: Promise<Clips> | null = null;
 
-/** Clip 1 only, at its fixed name: what the site did before it listed, and what it falls back to if a listing fails. */
-const fallbackClips = (): Clips => Object.fromEntries(DOMAINS.map((d) => [d.slug, [`${d.slug}/${d.slug}.mp4`]]));
+/**
+ * What the site falls back to if a listing fails: Ego-centric clip 1 at its fixed name (what it
+ * served before it listed), and no head + wrist clips (there is no fixed set of those to assume).
+ */
+const fallbackClips = (): Clips => ({ ego: Object.fromEntries(DOMAINS.map((d) => [d.slug, [`${d.slug}/${d.slug}.mp4`]])), head_wrist: {} });
 
 const byName = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 
-/** Group listed keys into each catalog type's clips, in play order. Keys outside a type's folder are ignored. */
+/** Group listed keys into each setup's and catalog type's clips, in play order. Keys outside those folders are ignored. */
 function groupClips(keys: string[]): Clips {
-  const clips: Clips = {};
-  for (const { slug } of DOMAINS) {
-    const first = `${slug}/${slug}.mp4`;
-    const mine = keys
-      .filter((k) => k.startsWith(`${slug}/`) && !k.slice(slug.length + 1).includes("/") && /\.mp4$/i.test(k))
-      .sort((a, b) => (a === first ? -1 : b === first ? 1 : byName.compare(a, b)));
-    if (mine.length) clips[slug] = mine;
+  const clips = { ego: {}, head_wrist: {} } as Clips;
+  for (const setup of SETUP_IDS) {
+    for (const { slug } of DOMAINS) {
+      const folder = `${SETUP_FOLDER[setup]}${slug}/`;
+      const first = `${folder}${slug}.mp4`;
+      const mine = keys
+        .filter((k) => k.startsWith(folder) && !k.slice(folder.length).includes("/") && /\.mp4$/i.test(k))
+        .sort((a, b) => (a === first ? -1 : b === first ? 1 : byName.compare(a, b)));
+      if (mine.length) clips[setup][slug] = mine;
+    }
   }
   return clips;
 }
@@ -132,25 +143,34 @@ async function clipKeys(cfg: Config): Promise<Clips> {
  * The object behind one clip, or null. Only catalog slugs and listed clips get this far, so a
  * request can never name a path of its own.
  */
-async function objectKey(cfg: Config, slug: string, clip: number): Promise<string | null> {
+async function objectKey(cfg: Config, setup: SetupId, slug: string, clip: number): Promise<string | null> {
   // Own keys only: "__proto__", "constructor" and the like are not environment types.
   if (!Object.hasOwn(DOMAIN_BY_SLUG, slug)) return null;
-  const clips = await clipKeys(cfg);
-  return (Object.hasOwn(clips, slug) && clips[slug][clip - 1]) || null;
+  const mine = (await clipKeys(cfg))[setup];
+  return (Object.hasOwn(mine, slug) && mine[slug][clip - 1]) || null;
 }
 
-/** How many clips each environment type has, for the page to know what to offer. Counts only, never names. */
-export async function previewClips(): Promise<Record<string, number>> {
+export type ClipCounts = Record<SetupId, Record<string, number>>;
+
+/** How many clips each setup's environment types have, for the page to know what to offer. Counts only, never names. */
+export async function previewClips(): Promise<ClipCounts> {
   const cfg = config();
-  if (!cfg) return {};
+  if (!cfg) return { ego: {}, head_wrist: {} };
   const clips = await clipKeys(cfg);
-  return Object.fromEntries(Object.entries(clips).map(([slug, keys]) => [slug, keys.length]));
+  const count = (setup: SetupId) => Object.fromEntries(Object.entries(clips[setup]).map(([slug, keys]) => [slug, keys.length]));
+  return { ego: count("ego"), head_wrist: count("head_wrist") };
 }
 
 /** The clip number in ?clip=: 1 when absent; null when it is anything but a small whole number. */
 export function parseClip(value: string | null): number | null {
   if (value === null) return 1;
   return /^[1-9]\d{0,2}$/.test(value) ? Number(value) : null;
+}
+
+/** The setup in ?setup=: Ego-centric when absent; null when it names no setup. */
+export function parseSetup(value: string | null): SetupId | null {
+  if (value === null) return "ego";
+  return (SETUP_IDS as string[]).includes(value) ? (value as SetupId) : null;
 }
 
 // One range, as browsers send for video: "bytes=0-", "bytes=1000-1999", "bytes=-500".
@@ -162,10 +182,16 @@ const PASS = ["content-length", "content-range", "accept-ranges", "last-modified
 const plain = (status: number, text: string) =>
   new Response(text, { status, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
 
-export async function previewResponse(slug: string, clip: number | null, range: string | null, method: "GET" | "HEAD" = "GET"): Promise<Response> {
+export async function previewResponse(
+  slug: string,
+  setup: SetupId | null,
+  clip: number | null,
+  range: string | null,
+  method: "GET" | "HEAD" = "GET",
+): Promise<Response> {
   const cfg = config();
-  if (!cfg || clip === null) return plain(404, "Not found");
-  const key = await objectKey(cfg, slug, clip);
+  if (!cfg || clip === null || setup === null) return plain(404, "Not found");
+  const key = await objectKey(cfg, setup, slug, clip);
   if (!key) return plain(404, "Not found");
 
   const path = `/${encodeKeyPath(cfg.bucket)}/${encodeKeyPath(key)}`;
@@ -198,7 +224,7 @@ export async function previewResponse(slug: string, clip: number | null, range: 
 
   const headers = new Headers({
     "content-type": "video/mp4",
-    "content-disposition": `inline; filename="${slug}${clip > 1 ? `-${clip}` : ""}.mp4"`,
+    "content-disposition": `inline; filename="${setup === "ego" ? "" : "head-wrist-"}${slug}${clip > 1 ? `-${clip}` : ""}.mp4"`,
     "x-content-type-options": "nosniff",
     "cache-control": "private, max-age=600",
   });

@@ -1,33 +1,37 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { domainName } from "@/lib/catalog";
+import { domainName, type SetupId } from "@/lib/catalog";
 
-// Preview videos: one or more short clips per environment type, streamed by the server
-// from /api/preview/<slug>?clip=<n> (src/lib/preview.ts). The browser only ever knows that
-// URL and how many clips each type has; never where the videos are stored.
+// Preview videos: one or more short clips per capture setup and environment type, streamed by
+// the server from /api/preview/<slug>?setup=<setup>&clip=<n> (src/lib/preview.ts). The browser
+// only ever knows that URL and how many clips each type has; never where the videos are stored.
+//   Ego-centric:  one stereo frame, both eyes side by side (16:5).
+//   Head + wrist: head stereo on top, left and right wrist below (16:10).
+
+/** Clips per setup and environment type, as the server counted them. */
+export type ClipCounts = Readonly<Record<SetupId, Readonly<Record<string, number>>>>;
 
 type Previews = {
-  slugs: readonly string[];
-  counts: Readonly<Record<string, number>>;
-  /** The clip each type is on (1-based), shared by the card, the dialog and the preview card so they agree. */
+  counts: ClipCounts;
+  /** The clip each setup's type is on (1-based), shared by the card, the dialog and the preview card so they agree. */
   chosen: Readonly<Record<string, number>>;
-  choose: (slug: string, clip: number) => void;
+  choose: (key: string, clip: number) => void;
 };
-const PreviewContext = createContext<Previews>({ slugs: [], counts: {}, chosen: {}, choose: () => {} });
+const PreviewContext = createContext<Previews>({ counts: { ego: {}, head_wrist: {} }, chosen: {}, choose: () => {} });
 
-export function PreviewProvider({ clips, children }: { clips: Record<string, number>; children: ReactNode }) {
+export function PreviewProvider({ clips, children }: { clips: ClipCounts; children: ReactNode }) {
   const [chosen, setChosen] = useState<Record<string, number>>({});
-  const choose = useCallback((slug: string, clip: number) => setChosen((c) => (c[slug] === clip ? c : { ...c, [slug]: clip })), []);
-  const value = useMemo(
-    () => ({ slugs: Object.keys(clips).filter((s) => clips[s] > 0), counts: clips, chosen, choose }),
-    [clips, chosen, choose],
-  );
+  const choose = useCallback((key: string, clip: number) => setChosen((c) => (c[key] === clip ? c : { ...c, [key]: clip })), []);
+  const value = useMemo(() => ({ counts: clips, chosen, choose }), [clips, chosen, choose]);
   return <PreviewContext.Provider value={value}>{children}</PreviewContext.Provider>;
 }
 
-/** The URL of one clip. Clip 1 keeps the plain address. */
-export const clipSrc = (slug: string, clip: number) => `/api/preview/${encodeURIComponent(slug)}${clip > 1 ? `?clip=${clip}` : ""}`;
+/** The URL of one clip. Ego-centric clip 1 keeps the plain address. */
+export function clipSrc(slug: string, clip: number, setup: SetupId = "ego") {
+  const q = [setup !== "ego" && `setup=${setup}`, clip > 1 && `clip=${clip}`].filter(Boolean).join("&");
+  return `/api/preview/${encodeURIComponent(slug)}${q ? `?${q}` : ""}`;
+}
 
 const SLIDE_MS = 420;
 const SLIDE_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
@@ -76,11 +80,13 @@ export function slideClip(video: HTMLVideoElement | null, by: number) {
 }
 
 /** One environment type's clips: how many, which is showing, and stepping between them (wraps round). */
-export function useClips(slug: string) {
+export function useClips(slug: string, setup: SetupId = "ego") {
   const { counts, chosen, choose } = useContext(PreviewContext);
-  const count = Object.hasOwn(counts, slug) ? counts[slug] : 0;
-  const clip = Math.min(Math.max(Object.hasOwn(chosen, slug) ? chosen[slug] : 1, 1), Math.max(count, 1));
-  const step = useCallback((by: number) => count > 1 && choose(slug, ((clip - 1 + by + count) % count) + 1), [choose, slug, clip, count]);
+  const mine = counts[setup];
+  const key = `${setup}:${slug}`;
+  const count = Object.hasOwn(mine, slug) ? mine[slug] : 0;
+  const clip = Math.min(Math.max(Object.hasOwn(chosen, key) ? chosen[key] : 1, 1), Math.max(count, 1));
+  const step = useCallback((by: number) => count > 1 && choose(key, ((clip - 1 + by + count) % count) + 1), [choose, key, clip, count]);
   return { count, clip, step };
 }
 
@@ -95,13 +101,14 @@ export function PreviewTabProvider({ value, children }: { value: Tab; children: 
   return <PreviewTabContext.Provider value={value}>{children}</PreviewTabContext.Provider>;
 }
 
-/** Environment types with a preview. Empty while previews are switched off. */
-export function usePreviewSlugs(): readonly string[] {
-  return useContext(PreviewContext).slugs;
+/** A setup's environment types with a preview (Ego-centric unless named). Empty while previews are switched off. */
+export function usePreviewSlugs(setup: SetupId = "ego"): readonly string[] {
+  const mine = useContext(PreviewContext).counts[setup];
+  return useMemo(() => Object.keys(mine).filter((s) => mine[s] > 0), [mine]);
 }
 
 const Chevron = ({ dir }: { dir: "prev" | "next" }) => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-4 w-4 lg:h-[18px] lg:w-[18px]">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-3.5 w-3.5 lg:h-4 lg:w-4">
     <path d={dir === "prev" ? "m14.5 6-6 6 6 6" : "m9.5 6 6 6-6 6"} stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
@@ -117,6 +124,7 @@ export function ClipArrows({
   onStep,
   className = "",
   dotsAt = "top-2",
+  dotsClassName = "",
 }: {
   name: string;
   clip: number;
@@ -126,12 +134,16 @@ export function ClipArrows({
   className?: string;
   /** Where the dots sit, clear of whatever else is on the picture. */
   dotsAt?: string;
+  /** Extra classes for the dots only. */
+  dotsClassName?: string;
 }) {
   if (count < 2) return null;
-  const button = `pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-ink shadow-[0_2px_8px_rgba(0,0,0,0.3)] backdrop-blur-sm transition-[opacity,background-color,transform,translate,scale] duration-150 hover:bg-white active:scale-90 lg:h-9 lg:w-9 ${className}`;
+  // Small and see-through, so they sit on the picture without hiding it: 24px on phones (the minimum
+  // target), 32px on desktop. Solid on hover.
+  const button = `pointer-events-auto flex h-6 w-6 items-center justify-center rounded-full bg-white/55 text-ink shadow-[0_1px_4px_rgba(0,0,0,0.25)] backdrop-blur-[3px] transition-[opacity,background-color,transform,translate,scale] duration-150 hover:bg-white/90 active:scale-90 lg:h-8 lg:w-8 ${className}`;
   return (
     <>
-      <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 items-center justify-between px-1.5 lg:px-2">
+      <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 items-center justify-between px-1 lg:px-2">
         <button
           type="button"
           onClick={(e) => {
@@ -157,10 +169,13 @@ export function ClipArrows({
       </div>
       <span
         aria-hidden="true"
-        className={`pointer-events-none absolute ${dotsAt} left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/45 px-1.5 py-1 transition-opacity duration-150 ${className}`}
+        className={`pointer-events-none absolute ${dotsAt} left-1/2 z-20 flex -translate-x-1/2 items-center gap-[3px] rounded-full bg-black/40 px-1 py-[3px] transition-opacity duration-150 lg:gap-1 lg:px-1.5 lg:py-1 ${className} ${dotsClassName}`}
       >
         {Array.from({ length: count }, (_, i) => (
-          <span key={i} className={`h-1.5 rounded-full transition-[width,background-color] duration-200 ${i + 1 === clip ? "w-3 bg-white" : "w-1.5 bg-white/55"}`} />
+          <span
+            key={i}
+            className={`h-1 rounded-full transition-[width,background-color] duration-200 lg:h-1.5 ${i + 1 === clip ? "w-2.5 bg-white lg:w-3" : "w-1 bg-white/55 lg:w-1.5"}`}
+          />
         ))}
       </span>
     </>
@@ -180,6 +195,18 @@ export function useMinWidth(px: number): boolean {
   return wide;
 }
 
+/** The views in each setup's frame and where each sits, for its name and watermark. */
+const EGO_VIEWS = [
+  { name: "L · Left eye", at: "inset-y-0 left-0 w-1/2" },
+  { name: "R · Right eye", at: "inset-y-0 right-0 w-1/2" },
+];
+const HEAD_WRIST_VIEWS = [
+  { name: "Head · L", at: "top-0 left-0 h-1/2 w-1/2" },
+  { name: "Head · R", at: "top-0 right-0 h-1/2 w-1/2" },
+  { name: "Left wrist", at: "bottom-0 left-0 h-1/2 w-1/2" },
+  { name: "Right wrist", at: "right-0 bottom-0 h-1/2 w-1/2" },
+];
+
 const clock = (s: number) => {
   const t = Number.isFinite(s) ? Math.max(0, Math.floor(s)) : 0;
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
@@ -194,11 +221,14 @@ const clock = (s: number) => {
  */
 export function PreviewVideo({
   slug,
+  setup = "ego",
   className = "",
   autoPlay = false,
   startAt = 0,
 }: {
   slug: string;
+  /** Which capture setup's clips: Ego-centric (one stereo frame) or head + wrist (head on top, wrists below). */
+  setup?: SetupId;
   className?: string;
   /** Start playing as soon as it can (muted, so browsers allow it). */
   autoPlay?: boolean;
@@ -215,11 +245,12 @@ export function PreviewVideo({
   const [hover, setHover] = useState(false);
   const [full, setFull] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { clip, count, step } = useClips(slug);
+  const hw = setup === "head_wrist";
+  const { clip, count, step } = useClips(slug, setup);
   // startAt belongs to the clip that was showing when this player opened (where a hover had got to).
   const firstClip = useRef(clip);
   const from = clip === firstClip.current ? startAt : 0;
-  const src = `${clipSrc(slug, clip)}#t=${from > 0.1 ? from.toFixed(2) : "0.1"}`;
+  const src = `${clipSrc(slug, clip, setup)}#t=${from > 0.1 ? from.toFixed(2) : "0.1"}`;
   // Set by this player's own arrows: the new clip should play. A change made elsewhere (a card's arrows) only loads it.
   const playNext = useRef(false);
   const lastSrc = useRef(src);
@@ -272,6 +303,11 @@ export function PreviewVideo({
   // Only the controls themselves take clicks, and only while visible; the bar's shading never
   // swallows a click meant for the video or the play button.
   const clickable = shown ? "pointer-events-auto" : "pointer-events-none group-has-[:focus-visible]:pointer-events-auto";
+  const views = hw ? HEAD_WRIST_VIEWS : EGO_VIEWS;
+  // In full screen the picture is centred and as large as fits (width-limited when upright, height-limited when wide).
+  const picture = full
+    ? `absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${hw ? "aspect-[16/10] w-[min(100%,160vh)]" : "aspect-[16/5] w-[min(100%,320vh)]"}`
+    : "absolute inset-0";
 
   return (
     <div
@@ -280,7 +316,10 @@ export function PreviewVideo({
       onPointerMove={(e) => e.pointerType === "mouse" && reveal(full ? 2500 : undefined)}
       onPointerLeave={(e) => e.pointerType === "mouse" && setHover(false)}
       onPointerDown={(e) => e.pointerType !== "mouse" && reveal(3000)}
-      className={`group relative overflow-hidden bg-[#0b1220] ${full ? "flex items-center justify-center" : "rounded-lg"} ${className}`}
+      // A size container: labels, watermark and the picture's shape follow the player's own width
+      // (a phone, the step 2 card, the dialog, full screen), not the screen's.
+      // isolate: the player is its own layer, so its controls (z-10 / z-20) never draw over the page's sticky bar.
+      className={`group @container relative isolate overflow-hidden bg-[#0b1220] ${full ? "flex items-center justify-center" : "rounded-lg"} ${className}`}
     >
       <video
         ref={ref}
@@ -304,41 +343,50 @@ export function PreviewVideo({
         onPlaying={() => setWaiting(false)}
         onCanPlay={() => setWaiting(false)}
         onError={() => setFailed(true)}
-        aria-label={`${domainName(slug)} preview`}
-        className={`block w-full cursor-pointer bg-[#0b1220] object-contain ${full ? "h-full" : "aspect-[16/5]"}`}
+        aria-label={`${domainName(slug)} ${hw ? "head and wrist " : ""}preview`}
+        // Ego-centric on narrow players (phones): a little taller than the clip's 16:5, trimming each
+        // eye's outer edges equally so the picture isn't a thin strip; from 448px wide the whole frame
+        // shows. Head + wrist is 16:10 already and always shows whole.
+        className={`block w-full cursor-pointer bg-[#0b1220] ${
+          full ? "h-full object-contain" : hw ? "aspect-[16/10] object-contain" : "aspect-[16/6] object-cover @md:aspect-[16/5] @md:object-contain"
+        }`}
       />
 
-      {/* Left / right eye: the two halves of the frame. Full screen keeps them on the picture, which fills the width. */}
-      {!failed && (
-        <div aria-hidden="true" className={`pointer-events-none absolute inset-x-0 ${full ? "top-1/2 aspect-[16/5] -translate-y-1/2" : "inset-y-0"} ${fade}`}>
-          <EyeLabel className="left-3">L · Left eye</EyeLabel>
-          <EyeLabel className="left-[calc(50%+12px)]">R · Right eye</EyeLabel>
-          <span className="absolute inset-y-0 left-1/2 w-px bg-white/25" />
-        </div>
-      )}
+      {/* Everything drawn on the picture sits in this box: the player itself, or in full screen the
+          picture's own rectangle (centred, as large as fits), so it stays on the picture on any screen. */}
+      <div className={`pointer-events-none ${picture}`}>
+        {/* The views in the frame: their dividing lines and names (with the controls), and the
+            watermark in each view's top-right corner (always). Drawn over the picture, not into it. */}
+        {!failed && (
+          <>
+            <div aria-hidden="true" className={`absolute inset-0 ${fade}`}>
+              <span className="absolute inset-y-0 left-1/2 w-px bg-white/25" />
+              {hw && <span className="absolute inset-x-0 top-1/2 h-px bg-white/25" />}
+            </div>
+            {views.map((v) => (
+              <div key={v.name} aria-hidden="true" className={`absolute z-10 select-none ${v.at}`}>
+                <EyeLabel className={`left-1.5 @md:left-3 ${fade}`}>{v.name}</EyeLabel>
+                <Watermark full={full} className="right-1.5 @md:right-2.5" />
+              </div>
+            ))}
+          </>
+        )}
 
-      {/* Watermark: the Awign mark and name, fixed in the top-right corner of each eye, always on
-          (also in full screen, where this box stays on the picture). Drawn over the picture, not into
-          it: the file itself is unmarked until previews are re-encoded. */}
-      {!failed && (
-        <div aria-hidden="true" className={`pointer-events-none absolute inset-x-0 z-10 select-none ${full ? "top-1/2 aspect-[16/5] -translate-y-1/2" : "inset-y-0"}`}>
-          <Watermark full={full} className="right-[calc(50%+10px)]" />
-          <Watermark full={full} className="right-2.5" />
-        </div>
-      )}
-
-      {/* Other clips of this type. Always shown (a tap has no hover); the dots sit above the control bar, clear of the eye labels. */}
-      <ClipArrows
-        name={domainName(slug)}
-        clip={clip}
-        count={count}
-        dotsAt={full ? "bottom-16" : "bottom-11 lg:bottom-12"}
-        onStep={(by) => {
-          playNext.current = true;
-          slideClip(ref.current, by);
-          step(by);
-        }}
-      />
+        {/* Other clips of this type. Arrows always shown (a tap has no hover). The dots sit at the bottom
+            edge, clear of the labels and the play button, and step aside while the control bar is up. */}
+        <ClipArrows
+          name={domainName(slug)}
+          clip={clip}
+          count={count}
+          dotsAt="bottom-1.5 @md:bottom-2"
+          dotsClassName={shown ? "opacity-0" : ""}
+          onStep={(by) => {
+            playNext.current = true;
+            slideClip(ref.current, by);
+            step(by);
+          }}
+        />
+      </div>
 
       {failed ? (
         <p role="status" className="absolute inset-0 flex items-center justify-center px-6 text-center text-[14px] text-white/80">
@@ -351,7 +399,7 @@ export function PreviewVideo({
             onClick={toggle}
             aria-label={playing ? "Loading" : `Play ${domainName(slug)} preview`}
             // Shows with the rest of the controls (hover, tap, keyboard focus); a spinner while loading always shows.
-            className={`absolute top-1/2 left-1/2 z-20 ${waiting && playing ? "opacity-100" : `${fade} ${clickable}`} flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-ink shadow-lg transition-transform duration-150 hover:scale-105 active:scale-95 lg:h-16 lg:w-16`}
+            className={`absolute top-1/2 left-1/2 z-20 ${waiting && playing ? "opacity-100" : `${fade} ${clickable}`} flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-ink shadow-lg transition-transform duration-150 hover:scale-105 active:scale-95 @md:h-14 @md:w-14 lg:h-16 lg:w-16`}
           >
             {waiting && playing ? (
               <span className="h-6 w-6 animate-spin rounded-full border-2 border-ink/20 border-t-ink" />
@@ -423,12 +471,14 @@ export function PreviewVideo({
 function Watermark({ full, className }: { full: boolean; className: string }) {
   return (
     <span
-      className={`absolute top-2.5 flex items-center gap-1.5 font-semibold tracking-[0.02em] text-white opacity-60 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))] ${
-        full ? "top-5 gap-2.5 text-[24px]" : "text-[12px] lg:text-[14px]"
+      // Sized to the player: small and tucked into each eye's top-right corner on a phone.
+      className={`absolute flex items-center font-semibold tracking-[0.02em] text-white opacity-60 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))] ${
+        // Full screen too follows the width: a phone held upright is still a narrow picture.
+        `top-1.5 gap-1 text-[9px] @md:top-2.5 @md:gap-1.5 @md:text-[12px] @xl:text-[14px] ${full ? "@3xl:top-5 @3xl:gap-2.5 @3xl:text-[24px]" : ""}`
       } ${className}`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/images/awign-mark.png" alt="" width={63} height={63} className={`w-auto brightness-0 invert ${full ? "h-7" : "h-3.5 lg:h-4"}`} />
+      <img src="/images/awign-mark.png" alt="" width={63} height={63} className={`w-auto brightness-0 invert h-2.5 @md:h-3.5 @xl:h-4 ${full ? "@3xl:h-7" : ""}`} />
       Awign
     </span>
   );
@@ -437,7 +487,7 @@ function Watermark({ full, className }: { full: boolean; className: string }) {
 function EyeLabel({ className, children }: { className: string; children: ReactNode }) {
   return (
     <span
-      className={`absolute top-3 rounded bg-black/55 px-2 py-1 font-mono text-[10px] tracking-[0.14em] text-white uppercase lg:text-[11px] ${className}`}
+      className={`absolute top-1.5 rounded bg-black/55 px-1 py-0.5 font-mono text-[8px] tracking-[0.1em] text-white uppercase @md:top-3 @md:px-2 @md:py-1 @md:text-[10px] @md:tracking-[0.14em] @xl:text-[11px] ${className}`}
     >
       {children}
     </span>
@@ -448,8 +498,8 @@ function EyeLabel({ className, children }: { className: string; children: ReactN
  * Step 2's preview card: the picked environment types that have a clip, one at a
  * time, with chips to jump and Previous / Next to step through them.
  */
-export function StepPreview({ picked }: { picked: string[] }) {
-  const available = usePreviewSlugs();
+export function StepPreview({ picked, setup }: { picked: string[]; setup: SetupId }) {
+  const available = usePreviewSlugs(setup);
   const list = picked.filter((s) => available.includes(s));
   const shared = useContext(PreviewTabContext);
   const local = useState<string | null>(null);
@@ -509,7 +559,7 @@ export function StepPreview({ picked }: { picked: string[] }) {
           );
         })}
       </div>
-      <PreviewVideo key={current} slug={current} className="-mx-3 mt-3" />
+      <PreviewVideo key={`${setup}:${current}`} slug={current} setup={setup} className="-mx-3 mt-3" />
       <div className="mt-2 flex items-center justify-between gap-3 text-[15px]">
         <button
           type="button"

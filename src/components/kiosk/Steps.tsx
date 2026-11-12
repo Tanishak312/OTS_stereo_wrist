@@ -26,15 +26,15 @@ import { PreviewDialog, VideoCard, type Origin } from "./VideoCards";
 import { ArrowRight, CheckIcon, Chip, Eyebrow, SelectAllButton, StepLayout, Title } from "./ui";
 
 /**
- * The preview card for steps 2-4 (Ego-centric clips only). Desktop puts it above the
+ * The preview card for steps 2-4, with the chosen setup's clips. Desktop puts it above the
  * selection; a phone puts it after the step's own content so picking stays on top.
  * Only one copy is ever mounted, so only one video loads.
  */
 function useStepPreview(setup: Selection["setup"], picked: string[]) {
   const wide = useMinWidth(1024);
-  const slugs = usePreviewSlugs();
-  const show = setup === "ego" && picked.some((e) => slugs.includes(e));
-  return { wide, preview: show ? <StepPreview picked={picked} /> : null };
+  const slugs = usePreviewSlugs(setup ?? "ego");
+  const show = !!setup && picked.some((e) => slugs.includes(e));
+  return { wide, preview: show && setup ? <StepPreview picked={picked} setup={setup} /> : null };
 }
 
 function toggle<T>(list: T[], item: T): T[] {
@@ -147,7 +147,7 @@ export function EnvironmentsStep({ sel, onChange }: { sel: Selection; onChange: 
   const closeMore = useCallback(() => setMoreOpen(false), []);
   const allPicked = available.length > 0 && available.every((s) => sel.environments.includes(s));
   const { wide, preview } = useStepPreview(sel.setup, sel.environments);
-  const clipSlugs = usePreviewSlugs();
+  const clipSlugs = usePreviewSlugs(sel.setup ?? "ego");
   const [opened, setOpened] = useState<{ slug: string; origin: Origin; startAt: number } | null>(null);
   const openedDomain = opened ? DOMAINS.find((d) => d.slug === opened.slug) : undefined;
   const closePreview = useCallback(() => setOpened(null), []);
@@ -185,8 +185,9 @@ export function EnvironmentsStep({ sel, onChange }: { sel: Selection; onChange: 
                   index={i}
                   hours={hours[d.slug] ?? 0}
                   episodes={episodes[d.slug] ?? 0}
-                  // Clips are Ego-centric recordings, so only that setup's cards play.
-                  hasClip={sel.setup === "ego" && clipSlugs.includes(d.slug)}
+                  // Each setup plays its own recordings; a type with none for this setup picks on click.
+                  setup={sel.setup ?? "ego"}
+                  hasClip={!!sel.setup && clipSlugs.includes(d.slug)}
                   selected={selected}
                   disabled={empty}
                   paused={opened !== null}

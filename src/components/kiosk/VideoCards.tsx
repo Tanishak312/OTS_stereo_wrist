@@ -31,6 +31,7 @@ export function VideoCard({
   index,
   hours,
   episodes,
+  setup,
   hasClip,
   selected,
   disabled,
@@ -42,6 +43,8 @@ export function VideoCard({
   index: number;
   hours: number;
   episodes: number;
+  /** The chosen capture setup: whose clips the card plays. */
+  setup: SetupId;
   /** This environment type has a preview clip for the chosen setup. */
   hasClip: boolean;
   selected: boolean;
@@ -60,7 +63,7 @@ export function VideoCard({
   const [forced, setForced] = useState(false);
   const [live, setLive] = useState(false);
   const [progress, setProgress] = useState(0);
-  const { clip, count, step } = useClips(domain.slug);
+  const { clip, count, step } = useClips(domain.slug, setup);
   const play = hasClip && (hover || forced) && !paused;
 
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
@@ -104,7 +107,9 @@ export function VideoCard({
   };
 
   return (
-    <div className="group/card relative animate-fade-up" style={stagger(index, 100)} onPointerEnter={enter} onPointerLeave={leave}>
+    // isolate: the card is its own layer, so the arrows, dots and check on it stay inside it and
+    // never draw over the page's sticky bottom bar or anything else above the grid.
+    <div className="group/card relative isolate animate-fade-up" style={stagger(index, 100)} onPointerEnter={enter} onPointerLeave={leave}>
       <button
         type="button"
         onClick={hasClip ? open : onToggle}
@@ -126,7 +131,7 @@ export function VideoCard({
             <video
               ref={videoRef}
               // The clip holds both eyes side by side (16:5); covering a 16:10 box from the left shows exactly the left eye.
-              src={clipSrc(domain.slug, clip)}
+              src={clipSrc(domain.slug, clip, setup)}
               muted
               autoPlay
               loop
@@ -141,7 +146,8 @@ export function VideoCard({
               }}
               aria-hidden="true"
               // Dark behind the picture: while the next clip loads it slides in as a dark panel, not see-through to the photo.
-              className={`absolute inset-0 h-full w-full bg-[#0b1220] object-cover object-left transition-opacity duration-300 ${live ? "opacity-100" : "opacity-0"}`}
+              // Head + wrist is 16:10 like the card, so it shows whole: head on top, both wrists below.
+              className={`absolute inset-0 h-full w-full bg-[#0b1220] object-cover ${setup === "ego" ? "object-left" : "object-center"} transition-opacity duration-300 ${live ? "opacity-100" : "opacity-0"}`}
             />
           )}
           {hasClip && !live && (
@@ -385,7 +391,7 @@ export function PreviewDialog({
         </div>
 
         <div ref={videoBoxRef} className="mt-4 px-3 lg:mt-5 lg:px-5">
-          <PreviewVideo slug={domain.slug} autoPlay startAt={startAt} />
+          <PreviewVideo slug={domain.slug} setup={setup} autoPlay startAt={startAt} />
         </div>
 
         <div className="flex flex-col gap-4 px-5 pt-4 pb-5 lg:flex-row lg:items-start lg:justify-between lg:gap-10 lg:px-8 lg:pt-6 lg:pb-8">
