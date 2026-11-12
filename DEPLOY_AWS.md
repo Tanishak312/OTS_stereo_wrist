@@ -21,9 +21,15 @@ needs no keys.
 | `SAMPLE_DRIVE_URL_EGO` | Yes | Ego sample folder |
 | `OFFER_MCAP` | Yes | `true`, so full-dataset sizes count MCAP |
 | `SUPABASE_URL` | No | Only if the anon key doesn't carry the project ref |
+| `PREVIEW_R2_ENDPOINT` | For previews | `https://<account-id>.r2.cloudflarestorage.com` |
+| `PREVIEW_R2_BUCKET` | For previews | `orion-sample-ots` |
+| `PREVIEW_R2_ACCESS_KEY_ID` | For previews | Its own R2 token: Object Read only, `orion-sample-ots` only |
+| `PREVIEW_R2_SECRET_ACCESS_KEY` | For previews | That token's secret. Keep it in AWS Secrets Manager |
 
-**Never set `SUPABASE_SERVICE_ROLE` or any R2 key.** The site doesn't use them. Don't
-copy the local `.env` across as it is.
+The four `PREVIEW_R2_*` turn the preview videos on; with any of them empty they're off
+and the rest of the site works. **Never set `SUPABASE_SERVICE_ROLE` or any other R2 key**
+(no write token, no token that can read another bucket). Don't copy the local `.env`
+across as it is.
 
 ## 2. Build and try it locally
 

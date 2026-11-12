@@ -1,9 +1,9 @@
 import "server-only";
 import { DOMAINS, DOMAIN_BY_SLUG } from "./catalog";
-import { encodeKeyPath, signedGetHeaders } from "./r2-sign";
+import { encodeKeyPath, encodeQuery, signedGetHeaders } from "./r2-sign";
 
-// Preview videos, one per environment type, played on the site from
-// /api/preview/<slug>. The server fetches each one from R2 and passes the bytes
+// Preview videos, one or more per environment type, played on the site from
+// /api/preview/<slug>?clip=<n>. The server fetches each one from R2 and passes the bytes
 // on, so the browser never sees an R2 address, bucket, key, token or file path:
 // only that URL. Off (404) unless all four PREVIEW_R2_* values are set.
 //
@@ -45,21 +45,112 @@ function misconfigured(why: string): null {
   return null;
 }
 
-/**
- * The object behind one environment type's preview, or null: <slug>/<slug>.mp4 in the
- * preview bucket (e.g. home/home.mp4). Only slugs in the catalog get this far, so a
- * request can never name a path of its own.
- */
-function objectKey(slug: string): string | null {
-  // Own keys only: "__proto__", "constructor" and the like are not environment types.
-  if (!Object.hasOwn(DOMAIN_BY_SLUG, slug)) return null;
-  return `${slug}/${slug}.mp4`;
+// Each environment type has a folder in the preview bucket holding one or more clips:
+//   home/home.mp4      clip 1 (always first)
+//   home/home-2.mp4    clip 2, then any other .mp4 in the folder in name order
+// The server lists the bucket to see what is there, so adding or removing a clip needs no
+// code change. The browser asks for /api/preview/<slug>?clip=<n> and never learns a file name.
+
+/** How long a listing is trusted before the bucket is listed again. */
+const LIST_TTL_MS = 5 * 60_000;
+/** After a failed listing, how long before trying again (the last good listing, or the fallback, serves meanwhile). */
+const LIST_RETRY_MS = 60_000;
+
+type Clips = Record<string, string[]>;
+let listed: { at: number; ttl: number; clips: Clips } | null = null;
+let listing: Promise<Clips> | null = null;
+
+/** Clip 1 only, at its fixed name: what the site did before it listed, and what it falls back to if a listing fails. */
+const fallbackClips = (): Clips => Object.fromEntries(DOMAINS.map((d) => [d.slug, [`${d.slug}/${d.slug}.mp4`]]));
+
+const byName = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+
+/** Group listed keys into each catalog type's clips, in play order. Keys outside a type's folder are ignored. */
+function groupClips(keys: string[]): Clips {
+  const clips: Clips = {};
+  for (const { slug } of DOMAINS) {
+    const first = `${slug}/${slug}.mp4`;
+    const mine = keys
+      .filter((k) => k.startsWith(`${slug}/`) && !k.slice(slug.length + 1).includes("/") && /\.mp4$/i.test(k))
+      .sort((a, b) => (a === first ? -1 : b === first ? 1 : byName.compare(a, b)));
+    if (mine.length) clips[slug] = mine;
+  }
+  return clips;
 }
 
-/** The environment types that have a preview, for the page to know which to offer. Names only. */
-export function previewSlugs(): string[] {
-  if (!config()) return [];
-  return DOMAINS.map((d) => d.slug).filter((slug) => objectKey(slug) !== null);
+const xmlText = (s: string) =>
+  s.replace(/&(lt|gt|quot|apos|amp|#(\d+)|#x([0-9a-f]+));/gi, (_, name: string, dec?: string, hex?: string) =>
+    dec ? String.fromCodePoint(Number(dec)) : hex ? String.fromCodePoint(parseInt(hex, 16)) : ({ lt: "<", gt: ">", quot: '"', apos: "'", amp: "&" } as Record<string, string>)[name.toLowerCase()],
+  );
+
+/** Every key in the preview bucket (ListObjectsV2, a read). Throws on any failure; callers fall back. */
+async function listKeys(cfg: Config): Promise<string[]> {
+  const path = `/${encodeKeyPath(cfg.bucket)}`;
+  const keys: string[] = [];
+  let token: string | undefined;
+  // A page holds 1,000 keys; 20 pages is far more than a preview bucket should ever hold.
+  for (let page = 0; page < 20; page++) {
+    const query: Record<string, string> = { "list-type": "2", "max-keys": "1000" };
+    if (token) query["continuation-token"] = token;
+    const res = await fetch(`${cfg.origin}${path}?${encodeQuery(query)}`, {
+      headers: signedGetHeaders({ host: cfg.host, path, query, region: "auto", accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    const body = await res.text();
+    // Status only: the error body names the bucket.
+    if (!res.ok) throw new Error(`list answered ${res.status}`);
+    for (const m of body.matchAll(/<Key>([^<]*)<\/Key>/g)) keys.push(xmlText(m[1]));
+    token = /<IsTruncated>true<\/IsTruncated>/.test(body) ? body.match(/<NextContinuationToken>([^<]*)<\/NextContinuationToken>/)?.[1] : undefined;
+    if (!token) return keys;
+    token = xmlText(token);
+  }
+  return keys;
+}
+
+/** Each environment type's clips (object keys, play order). Listed at most every few minutes; never throws. */
+async function clipKeys(cfg: Config): Promise<Clips> {
+  if (listed && Date.now() - listed.at < listed.ttl) return listed.clips;
+  // One listing at a time: requests arriving meanwhile share it.
+  listing ??= listKeys(cfg)
+    .then((keys) => {
+      listed = { at: Date.now(), ttl: LIST_TTL_MS, clips: groupClips(keys) };
+      return listed.clips;
+    })
+    .catch((e) => {
+      console.error("[preview] listing failed:", e instanceof Error ? e.message : "error", listed ? "(keeping the last listing)" : "(clip 1 only until it works)");
+      listed = { at: Date.now(), ttl: LIST_RETRY_MS, clips: listed?.clips ?? fallbackClips() };
+      return listed.clips;
+    })
+    .finally(() => {
+      listing = null;
+    });
+  return listing;
+}
+
+/**
+ * The object behind one clip, or null. Only catalog slugs and listed clips get this far, so a
+ * request can never name a path of its own.
+ */
+async function objectKey(cfg: Config, slug: string, clip: number): Promise<string | null> {
+  // Own keys only: "__proto__", "constructor" and the like are not environment types.
+  if (!Object.hasOwn(DOMAIN_BY_SLUG, slug)) return null;
+  const clips = await clipKeys(cfg);
+  return (Object.hasOwn(clips, slug) && clips[slug][clip - 1]) || null;
+}
+
+/** How many clips each environment type has, for the page to know what to offer. Counts only, never names. */
+export async function previewClips(): Promise<Record<string, number>> {
+  const cfg = config();
+  if (!cfg) return {};
+  const clips = await clipKeys(cfg);
+  return Object.fromEntries(Object.entries(clips).map(([slug, keys]) => [slug, keys.length]));
+}
+
+/** The clip number in ?clip=: 1 when absent; null when it is anything but a small whole number. */
+export function parseClip(value: string | null): number | null {
+  if (value === null) return 1;
+  return /^[1-9]\d{0,2}$/.test(value) ? Number(value) : null;
 }
 
 // One range, as browsers send for video: "bytes=0-", "bytes=1000-1999", "bytes=-500".
@@ -71,10 +162,10 @@ const PASS = ["content-length", "content-range", "accept-ranges", "last-modified
 const plain = (status: number, text: string) =>
   new Response(text, { status, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
 
-export async function previewResponse(slug: string, range: string | null, method: "GET" | "HEAD" = "GET"): Promise<Response> {
+export async function previewResponse(slug: string, clip: number | null, range: string | null, method: "GET" | "HEAD" = "GET"): Promise<Response> {
   const cfg = config();
-  if (!cfg) return plain(404, "Not found");
-  const key = objectKey(slug);
+  if (!cfg || clip === null) return plain(404, "Not found");
+  const key = await objectKey(cfg, slug, clip);
   if (!key) return plain(404, "Not found");
 
   const path = `/${encodeKeyPath(cfg.bucket)}/${encodeKeyPath(key)}`;
@@ -107,7 +198,7 @@ export async function previewResponse(slug: string, range: string | null, method
 
   const headers = new Headers({
     "content-type": "video/mp4",
-    "content-disposition": `inline; filename="${slug}.mp4"`,
+    "content-disposition": `inline; filename="${slug}${clip > 1 ? `-${clip}` : ""}.mp4"`,
     "x-content-type-options": "nosniff",
     "cache-control": "private, max-age=600",
   });

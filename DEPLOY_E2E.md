@@ -80,9 +80,16 @@ RESEND_API_KEY=<resend key>
 EMAIL_FROM=Awign Robotics Data <data@awign.in>
 SAMPLE_DRIVE_URL_EGO=https://drive.google.com/drive/folders/<ego folder>
 OFFER_MCAP=true                               # full-dataset sizes count MCAP; see the note in README
+
+# Preview videos (/api/preview/<slug>). Off if any of the four is empty.
+PREVIEW_R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+PREVIEW_R2_BUCKET=orion-sample-ots
+PREVIEW_R2_ACCESS_KEY_ID=<preview token: Object Read only, orion-sample-ots only>
+PREVIEW_R2_SECRET_ACCESS_KEY=<its secret>
 ```
 
-**Never on the server:** `SUPABASE_SERVICE_ROLE`, or any R2 key. The site doesn't use R2.
+**Never on the server:** `SUPABASE_SERVICE_ROLE`, or any R2 key other than the preview
+read token above (no write token, no token that can read another bucket).
 Your local `.env` has `SUPABASE_SERVICE_ROLE`; don't copy that line. The code
 never reads it.
 
@@ -179,6 +186,7 @@ New SQL files in `supabase/` are run in the Supabase SQL editor **before**
 |---|---|
 | Site down / 502 | `pm2 status`, `pm2 logs ots-web` |
 | A customer's email didn't go out | The reason is on the request page. Then `EMAIL_FROM`, Resend domain verified, and **Send again** |
+| Preview videos don't show | the four `PREVIEW_R2_*` in `.env`, then `pm2 reload ots-web --update-env`; `pm2 logs ots-web` prints `[preview] off: <why>` |
 | Ego-centric samples stay "Pending delivery" | `SAMPLE_DRIVE_URL_EGO` in `.env`, then `pm2 reload ots-web --update-env` |
 | Admin page: `PGRST202` in logs | a SQL file in `supabase/` hasn't been run |
 | Customer gets `AccessDenied` on the bucket | the token's bucket or its Object Read permission in R2 |

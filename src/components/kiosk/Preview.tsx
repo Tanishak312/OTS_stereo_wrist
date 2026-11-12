@@ -1,16 +1,87 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { domainName } from "@/lib/catalog";
 
-// Preview videos: one short clip per environment type, streamed by the server
-// from /api/preview/<slug> (src/lib/preview.ts). The browser only ever knows that
-// URL and which slugs have a clip; never where the videos are stored.
+// Preview videos: one or more short clips per environment type, streamed by the server
+// from /api/preview/<slug>?clip=<n> (src/lib/preview.ts). The browser only ever knows that
+// URL and how many clips each type has; never where the videos are stored.
 
-const PreviewContext = createContext<readonly string[]>([]);
+type Previews = {
+  slugs: readonly string[];
+  counts: Readonly<Record<string, number>>;
+  /** The clip each type is on (1-based), shared by the card, the dialog and the preview card so they agree. */
+  chosen: Readonly<Record<string, number>>;
+  choose: (slug: string, clip: number) => void;
+};
+const PreviewContext = createContext<Previews>({ slugs: [], counts: {}, chosen: {}, choose: () => {} });
 
-export function PreviewProvider({ slugs, children }: { slugs: string[]; children: ReactNode }) {
-  return <PreviewContext.Provider value={slugs}>{children}</PreviewContext.Provider>;
+export function PreviewProvider({ clips, children }: { clips: Record<string, number>; children: ReactNode }) {
+  const [chosen, setChosen] = useState<Record<string, number>>({});
+  const choose = useCallback((slug: string, clip: number) => setChosen((c) => (c[slug] === clip ? c : { ...c, [slug]: clip })), []);
+  const value = useMemo(
+    () => ({ slugs: Object.keys(clips).filter((s) => clips[s] > 0), counts: clips, chosen, choose }),
+    [clips, chosen, choose],
+  );
+  return <PreviewContext.Provider value={value}>{children}</PreviewContext.Provider>;
+}
+
+/** The URL of one clip. Clip 1 keeps the plain address. */
+export const clipSrc = (slug: string, clip: number) => `/api/preview/${encodeURIComponent(slug)}${clip > 1 ? `?clip=${clip}` : ""}`;
+
+const SLIDE_MS = 420;
+const SLIDE_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
+
+/**
+ * Carousel move between two clips of one type, called just before the clip changes: a still of
+ * the frame now showing slides out one side while the video (about to load the next clip) slides
+ * in from the other. `by` 1 is next (out to the left), -1 previous. Nothing with reduced motion,
+ * and only the slide-in when there is no frame to keep yet.
+ */
+export function slideClip(video: HTMLVideoElement | null, by: number) {
+  if (!video || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const dir = by < 0 ? -1 : 1;
+  let still: HTMLCanvasElement | null = null;
+  if (video.readyState >= 2 && video.videoWidth) {
+    try {
+      still = document.createElement("canvas");
+      still.width = video.videoWidth;
+      still.height = video.videoHeight;
+      still.getContext("2d")?.drawImage(video, 0, 0);
+      const css = getComputedStyle(video);
+      // Same box, fit and crop as the video, so the still lines up exactly with what was showing.
+      Object.assign(still.style, {
+        position: "absolute",
+        inset: "0",
+        width: "100%",
+        height: "100%",
+        objectFit: css.objectFit,
+        objectPosition: css.objectPosition,
+        pointerEvents: "none",
+      });
+      still.setAttribute("aria-hidden", "true");
+      video.after(still);
+    } catch {
+      still?.remove();
+      still = null;
+    }
+  }
+  if (still) {
+    const s = still;
+    s.animate([{ transform: "translateX(0)" }, { transform: `translateX(${-dir * 100}%)` }], { duration: SLIDE_MS, easing: SLIDE_EASE, fill: "forwards" })
+      .finished.catch(() => {})
+      .finally(() => s.remove());
+  }
+  video.animate([{ transform: `translateX(${dir * 100}%)` }, { transform: "translateX(0)" }], { duration: SLIDE_MS, easing: SLIDE_EASE });
+}
+
+/** One environment type's clips: how many, which is showing, and stepping between them (wraps round). */
+export function useClips(slug: string) {
+  const { counts, chosen, choose } = useContext(PreviewContext);
+  const count = Object.hasOwn(counts, slug) ? counts[slug] : 0;
+  const clip = Math.min(Math.max(Object.hasOwn(chosen, slug) ? chosen[slug] : 1, 1), Math.max(count, 1));
+  const step = useCallback((by: number) => count > 1 && choose(slug, ((clip - 1 + by + count) % count) + 1), [choose, slug, clip, count]);
+  return { count, clip, step };
 }
 
 /**
@@ -26,7 +97,74 @@ export function PreviewTabProvider({ value, children }: { value: Tab; children: 
 
 /** Environment types with a preview. Empty while previews are switched off. */
 export function usePreviewSlugs(): readonly string[] {
-  return useContext(PreviewContext);
+  return useContext(PreviewContext).slugs;
+}
+
+const Chevron = ({ dir }: { dir: "prev" | "next" }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-4 w-4 lg:h-[18px] lg:w-[18px]">
+    <path d={dir === "prev" ? "m14.5 6-6 6 6 6" : "m9.5 6 6 6-6 6"} stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+/**
+ * Round previous / next clip buttons on the left and right edges of a picture, with dots for
+ * which clip is showing. Nothing when the type has one clip. Place inside a positioned box.
+ */
+export function ClipArrows({
+  name,
+  clip,
+  count,
+  onStep,
+  className = "",
+  dotsAt = "top-2",
+}: {
+  name: string;
+  clip: number;
+  count: number;
+  onStep: (by: number) => void;
+  /** Extra classes for the buttons and dots, e.g. to show them only on hover. */
+  className?: string;
+  /** Where the dots sit, clear of whatever else is on the picture. */
+  dotsAt?: string;
+}) {
+  if (count < 2) return null;
+  const button = `pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-ink shadow-[0_2px_8px_rgba(0,0,0,0.3)] backdrop-blur-sm transition-[opacity,background-color,transform,translate,scale] duration-150 hover:bg-white active:scale-90 lg:h-9 lg:w-9 ${className}`;
+  return (
+    <>
+      <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 items-center justify-between px-1.5 lg:px-2">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onStep(-1);
+          }}
+          aria-label={`Previous ${name} clip (${clip === 1 ? count : clip - 1} of ${count})`}
+          className={button}
+        >
+          <Chevron dir="prev" />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onStep(1);
+          }}
+          aria-label={`Next ${name} clip (${clip === count ? 1 : clip + 1} of ${count})`}
+          className={button}
+        >
+          <Chevron dir="next" />
+        </button>
+      </div>
+      <span
+        aria-hidden="true"
+        className={`pointer-events-none absolute ${dotsAt} left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/45 px-1.5 py-1 transition-opacity duration-150 ${className}`}
+      >
+        {Array.from({ length: count }, (_, i) => (
+          <span key={i} className={`h-1.5 rounded-full transition-[width,background-color] duration-200 ${i + 1 === clip ? "w-3 bg-white" : "w-1.5 bg-white/55"}`} />
+        ))}
+      </span>
+    </>
+  );
 }
 
 /** True at and above `px` wide. False on the server and the first render, so a phone never loads both layouts. */
@@ -77,6 +215,25 @@ export function PreviewVideo({
   const [hover, setHover] = useState(false);
   const [full, setFull] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { clip, count, step } = useClips(slug);
+  // startAt belongs to the clip that was showing when this player opened (where a hover had got to).
+  const firstClip = useRef(clip);
+  const from = clip === firstClip.current ? startAt : 0;
+  const src = `${clipSrc(slug, clip)}#t=${from > 0.1 ? from.toFixed(2) : "0.1"}`;
+  // Set by this player's own arrows: the new clip should play. A change made elsewhere (a card's arrows) only loads it.
+  const playNext = useRef(false);
+  const lastSrc = useRef(src);
+
+  useEffect(() => {
+    if (lastSrc.current === src) return;
+    lastSrc.current = src;
+    setFailed(false);
+    setTime(0);
+    setDuration(0);
+    setPlaying(false);
+    if (playNext.current || autoPlay) ref.current?.play().catch(() => {});
+    playNext.current = false;
+  }, [src, autoPlay]);
 
   useEffect(() => {
     const onChange = () => setFull(document.fullscreenElement === wrapRef.current);
@@ -128,7 +285,7 @@ export function PreviewVideo({
       <video
         ref={ref}
         // "#t=0.1" makes browsers draw the first frame instead of a black box.
-        src={`/api/preview/${encodeURIComponent(slug)}#t=${startAt > 0.1 ? startAt.toFixed(2) : "0.1"}`}
+        src={src}
         preload={autoPlay ? "auto" : "metadata"}
         autoPlay={autoPlay}
         muted
@@ -169,6 +326,19 @@ export function PreviewVideo({
           <Watermark full={full} className="right-2.5" />
         </div>
       )}
+
+      {/* Other clips of this type. Always shown (a tap has no hover); the dots sit above the control bar, clear of the eye labels. */}
+      <ClipArrows
+        name={domainName(slug)}
+        clip={clip}
+        count={count}
+        dotsAt={full ? "bottom-16" : "bottom-11 lg:bottom-12"}
+        onStep={(by) => {
+          playNext.current = true;
+          slideClip(ref.current, by);
+          step(by);
+        }}
+      />
 
       {failed ? (
         <p role="status" className="absolute inset-0 flex items-center justify-center px-6 text-center text-[14px] text-white/80">

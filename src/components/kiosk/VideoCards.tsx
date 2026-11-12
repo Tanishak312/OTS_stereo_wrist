@@ -8,15 +8,18 @@ import { stagger } from "@/lib/motion";
 import { formatHours, formatHoursFine } from "@/lib/selection";
 import { Photo } from "../Photo";
 import { useInventory } from "./InventoryContext";
-import { PreviewVideo } from "./Preview";
+import { ClipArrows, PreviewVideo, clipSrc, slideClip, useClips } from "./Preview";
 import { CheckIcon } from "./ui";
 
-// /v2 step 2: environment cards as video thumbnails. The photo is the thumbnail; resting the
+// Step 2: environment cards as video thumbnails. The photo is the thumbnail; resting the
 // mouse on it plays that environment's preview in place, and a click opens the full preview in
-// a dialog that grows out of the card. Cards without a clip behave as the "/" cards do.
+// a dialog that grows out of the card. Cards without a clip pick on click.
 
 /** How long the mouse rests on a card before its video starts, so sweeping across the grid loads nothing. */
 const HOVER_DELAY_MS = 300;
+
+/** Window event a card sends when its arrows start it playing, so any other card stops. */
+const CARD_PLAY = "ots:card-play";
 
 const reducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -53,9 +56,12 @@ export function VideoCard({
   const videoRef = useRef<HTMLVideoElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hover, setHover] = useState(false);
+  // Started by the card's own arrows: plays without a hover (a tap on a phone), until the mouse leaves.
+  const [forced, setForced] = useState(false);
   const [live, setLive] = useState(false);
   const [progress, setProgress] = useState(0);
-  const play = hasClip && hover && !paused;
+  const { clip, count, step } = useClips(domain.slug);
+  const play = hasClip && (hover || forced) && !paused;
 
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   useEffect(() => {
@@ -64,6 +70,22 @@ export function VideoCard({
       setProgress(0);
     }
   }, [play]);
+  // The same video element takes the next clip (so it can slide in, see slideClip); only the progress restarts.
+  useEffect(() => setProgress(0), [clip]);
+  // One card plays from its arrows at a time: starting one stops the others.
+  useEffect(() => {
+    const stop = (e: Event) => (e as CustomEvent<string>).detail !== domain.slug && setForced(false);
+    window.addEventListener(CARD_PLAY, stop);
+    return () => window.removeEventListener(CARD_PLAY, stop);
+  }, [domain.slug]);
+
+  const stepClip = (by: number) => {
+    // Playing already (a hover): slide to the next clip. Not yet (a first tap on a phone): it fades in as on hover.
+    if (live) slideClip(videoRef.current, by);
+    step(by);
+    setForced(true);
+    window.dispatchEvent(new CustomEvent(CARD_PLAY, { detail: domain.slug }));
+  };
 
   const enter = (e: React.PointerEvent) => {
     // Mouse only: a touch has no hover, a tap opens the dialog. Reduced motion: nothing starts on its own.
@@ -71,9 +93,10 @@ export function VideoCard({
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setHover(true), HOVER_DELAY_MS);
   };
-  const leave = () => {
+  const leave = (e: React.PointerEvent) => {
     if (timer.current) clearTimeout(timer.current);
     setHover(false);
+    if (e.pointerType === "mouse") setForced(false);
   };
   const open = () => {
     const v = videoRef.current;
@@ -103,7 +126,7 @@ export function VideoCard({
             <video
               ref={videoRef}
               // The clip holds both eyes side by side (16:5); covering a 16:10 box from the left shows exactly the left eye.
-              src={`/api/preview/${encodeURIComponent(domain.slug)}`}
+              src={clipSrc(domain.slug, clip)}
               muted
               autoPlay
               loop
@@ -117,7 +140,8 @@ export function VideoCard({
                 if (v.duration) setProgress(v.currentTime / v.duration);
               }}
               aria-hidden="true"
-              className={`absolute inset-0 h-full w-full object-cover object-left transition-opacity duration-300 ${live ? "opacity-100" : "opacity-0"}`}
+              // Dark behind the picture: while the next clip loads it slides in as a dark panel, not see-through to the photo.
+              className={`absolute inset-0 h-full w-full bg-[#0b1220] object-cover object-left transition-opacity duration-300 ${live ? "opacity-100" : "opacity-0"}`}
             />
           )}
           {hasClip && !live && (
@@ -152,6 +176,20 @@ export function VideoCard({
           </p>
         </div>
       </button>
+
+      {/* Other clips of this type, over the thumbnail (outside the card's button: a button can't hold buttons).
+          Shown on hover or keyboard focus; always on touch screens, which have no hover. */}
+      {hasClip && count > 1 && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 aspect-[16/10]">
+          <ClipArrows
+            name={domain.name}
+            clip={clip}
+            count={count}
+            onStep={stepClip}
+            className="opacity-0 group-hover/card:opacity-100 group-has-[:focus-visible]/card:opacity-100 [@media(hover:none)]:opacity-100"
+          />
+        </div>
+      )}
 
       {hasClip ? (
         <button

@@ -120,16 +120,11 @@ export function SetupStep({ sel, onChange }: { sel: Selection; onChange: (s: Sel
 const COLLAPSED_COUNT = 8;
 const SHOWN_DOMAINS = DOMAINS.slice(0, COLLAPSED_COUNT);
 
-export function EnvironmentsStep({
-  sel,
-  onChange,
-  videoCards = false,
-}: {
-  sel: Selection;
-  onChange: (s: Selection) => void;
-  /** /v2: cards are video thumbnails that play on hover and open a full preview on click. */
-  videoCards?: boolean;
-}) {
+/**
+ * Step 2. The environment types are video thumbnails: resting on one plays its preview in the
+ * card, clicking opens the full preview (VideoCards.tsx). Types without a clip pick on click.
+ */
+export function EnvironmentsStep({ sel, onChange }: { sel: Selection; onChange: (s: Selection) => void }) {
   const inv = useInventory();
   const hours = useMemo(() => hoursBy(inv, "domain", { setup: sel.setup }), [inv, sel.setup]);
   const episodes = useMemo(() => episodesByDomain(inv, sel.setup), [inv, sel.setup]);
@@ -183,54 +178,21 @@ export function EnvironmentsStep({
             {shownDomains.map((d, i) => {
               const selected = sel.environments.includes(d.slug);
               const empty = !((hours[d.slug] ?? 0) > 0);
-              if (videoCards)
-                return (
-                  <VideoCard
-                    key={d.slug}
-                    domain={d}
-                    index={i}
-                    hours={hours[d.slug] ?? 0}
-                    episodes={episodes[d.slug] ?? 0}
-                    // Clips are Ego-centric recordings, so only that setup's cards play.
-                    hasClip={sel.setup === "ego" && clipSlugs.includes(d.slug)}
-                    selected={selected}
-                    disabled={empty}
-                    paused={opened !== null}
-                    onToggle={() => onChange({ ...sel, environments: toggle(sel.environments, d.slug) })}
-                    onOpen={(origin, startAt) => setOpened({ slug: d.slug, origin, startAt })}
-                  />
-                );
               return (
-                <button
+                <VideoCard
                   key={d.slug}
-                  type="button"
-                  aria-pressed={selected}
-                  disabled={empty && !selected}
-                  onClick={() => onChange({ ...sel, environments: toggle(sel.environments, d.slug) })}
-                  style={stagger(i, 100)}
-                  className={`group relative flex animate-fade-up flex-col overflow-hidden rounded-[14px] border-[1.5px] bg-white p-[7px] text-left transition-[border-color,box-shadow,transform,translate,scale] duration-200 enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 lg:rounded-[18px] lg:p-[11px] ${
-                    selected ? "border-brand ring-1 ring-brand" : "border-line enabled:hover:border-subtle"
-                  }`}
-                >
-                  <Photo
-                    src={d.image}
-                    alt=""
-                    className="aspect-[155/60] w-full rounded-lg lg:aspect-[222/97] lg:rounded-xl"
-                    imgClassName="group-hover:scale-[1.04]"
-                  />
-                  <div className="px-1.5 pt-2.5 pb-2 lg:px-2 lg:pt-4 lg:pb-2">
-                    <p className="text-[15px] leading-tight font-semibold lg:text-[24px] lg:font-medium">{d.name}</p>
-                    <p className="mt-1 text-[12px] text-muted lg:mt-1.5 lg:text-[17px]">
-                      <span className="tabular text-[14px] font-semibold text-brand lg:text-[22px]">{formatHoursFine(hours[d.slug] ?? 0)} h</span>{" "}
-                      <span className="tabular lg:ml-1">{formatHours(episodes[d.slug] ?? 0)}</span> episodes
-                    </p>
-                  </div>
-                  {selected && (
-                    <span className="absolute top-3 right-3 flex h-6 w-6 animate-pop items-center justify-center rounded-full bg-brand text-white lg:top-5 lg:right-5 lg:h-8 lg:w-8">
-                      <CheckIcon className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-                    </span>
-                  )}
-                </button>
+                  domain={d}
+                  index={i}
+                  hours={hours[d.slug] ?? 0}
+                  episodes={episodes[d.slug] ?? 0}
+                  // Clips are Ego-centric recordings, so only that setup's cards play.
+                  hasClip={sel.setup === "ego" && clipSlugs.includes(d.slug)}
+                  selected={selected}
+                  disabled={empty}
+                  paused={opened !== null}
+                  onToggle={() => onChange({ ...sel, environments: toggle(sel.environments, d.slug) })}
+                  onOpen={(origin, startAt) => setOpened({ slug: d.slug, origin, startAt })}
+                />
               );
             })}
             {moreDomains.length > 0 && (
