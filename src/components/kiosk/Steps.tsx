@@ -22,6 +22,7 @@ import { Photo } from "../Photo";
 import { MoreDomainsDialog } from "./MoreDomainsDialog";
 import { StepPreview, useMinWidth, usePreviewSlugs } from "./Preview";
 import { SelectionPanel } from "./SelectionPanel";
+import { PreviewDialog, VideoCard, type Origin } from "./VideoCards";
 import { ArrowRight, CheckIcon, Chip, Eyebrow, SelectAllButton, StepLayout, Title } from "./ui";
 
 /**
@@ -119,7 +120,16 @@ export function SetupStep({ sel, onChange }: { sel: Selection; onChange: (s: Sel
 const COLLAPSED_COUNT = 8;
 const SHOWN_DOMAINS = DOMAINS.slice(0, COLLAPSED_COUNT);
 
-export function EnvironmentsStep({ sel, onChange }: { sel: Selection; onChange: (s: Selection) => void }) {
+export function EnvironmentsStep({
+  sel,
+  onChange,
+  videoCards = false,
+}: {
+  sel: Selection;
+  onChange: (s: Selection) => void;
+  /** /v2: cards are video thumbnails that play on hover and open a full preview on click. */
+  videoCards?: boolean;
+}) {
   const inv = useInventory();
   const hours = useMemo(() => hoursBy(inv, "domain", { setup: sel.setup }), [inv, sel.setup]);
   const episodes = useMemo(() => episodesByDomain(inv, sel.setup), [inv, sel.setup]);
@@ -142,6 +152,10 @@ export function EnvironmentsStep({ sel, onChange }: { sel: Selection; onChange: 
   const closeMore = useCallback(() => setMoreOpen(false), []);
   const allPicked = available.length > 0 && available.every((s) => sel.environments.includes(s));
   const { wide, preview } = useStepPreview(sel.setup, sel.environments);
+  const clipSlugs = usePreviewSlugs();
+  const [opened, setOpened] = useState<{ slug: string; origin: Origin; startAt: number } | null>(null);
+  const openedDomain = opened ? DOMAINS.find((d) => d.slug === opened.slug) : undefined;
+  const closePreview = useCallback(() => setOpened(null), []);
 
   return (
     <StepLayout
@@ -169,6 +183,23 @@ export function EnvironmentsStep({ sel, onChange }: { sel: Selection; onChange: 
             {shownDomains.map((d, i) => {
               const selected = sel.environments.includes(d.slug);
               const empty = !((hours[d.slug] ?? 0) > 0);
+              if (videoCards)
+                return (
+                  <VideoCard
+                    key={d.slug}
+                    domain={d}
+                    index={i}
+                    hours={hours[d.slug] ?? 0}
+                    episodes={episodes[d.slug] ?? 0}
+                    // Clips are Ego-centric recordings, so only that setup's cards play.
+                    hasClip={sel.setup === "ego" && clipSlugs.includes(d.slug)}
+                    selected={selected}
+                    disabled={empty}
+                    paused={opened !== null}
+                    onToggle={() => onChange({ ...sel, environments: toggle(sel.environments, d.slug) })}
+                    onOpen={(origin, startAt) => setOpened({ slug: d.slug, origin, startAt })}
+                  />
+                );
               return (
                 <button
                   key={d.slug}
@@ -234,6 +265,20 @@ export function EnvironmentsStep({ sel, onChange }: { sel: Selection; onChange: 
             )}
           </div>
           {!wide && preview}
+          {opened && openedDomain && sel.setup && (
+            <PreviewDialog
+              domain={openedDomain}
+              setup={sel.setup}
+              hours={hours[opened.slug] ?? 0}
+              episodes={episodes[opened.slug] ?? 0}
+              selected={sel.environments.includes(opened.slug)}
+              disabled={!((hours[opened.slug] ?? 0) > 0)}
+              origin={opened.origin}
+              startAt={opened.startAt}
+              onToggle={() => onChange({ ...sel, environments: toggle(sel.environments, opened.slug) })}
+              onClose={closePreview}
+            />
+          )}
         </>
       }
     />

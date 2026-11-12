@@ -54,7 +54,19 @@ const clock = (s: number) => {
  * while a control has keyboard focus; the big play button stays while paused so
  * it's clear this is a video. Always muted: recordings can carry voices.
  */
-export function PreviewVideo({ slug, className = "" }: { slug: string; className?: string }) {
+export function PreviewVideo({
+  slug,
+  className = "",
+  autoPlay = false,
+  startAt = 0,
+}: {
+  slug: string;
+  className?: string;
+  /** Start playing as soon as it can (muted, so browsers allow it). */
+  autoPlay?: boolean;
+  /** Seconds in, e.g. where a hover preview had got to. */
+  startAt?: number;
+}) {
   const ref = useRef<HTMLVideoElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -116,8 +128,9 @@ export function PreviewVideo({ slug, className = "" }: { slug: string; className
       <video
         ref={ref}
         // "#t=0.1" makes browsers draw the first frame instead of a black box.
-        src={`/api/preview/${encodeURIComponent(slug)}#t=0.1`}
-        preload="metadata"
+        src={`/api/preview/${encodeURIComponent(slug)}#t=${startAt > 0.1 ? startAt.toFixed(2) : "0.1"}`}
+        preload={autoPlay ? "auto" : "metadata"}
+        autoPlay={autoPlay}
         muted
         playsInline
         disablePictureInPicture

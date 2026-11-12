@@ -46,7 +46,8 @@ const STEP_OF: Partial<Record<Screen, [number, string]>> = {
 const IDLE_MS = 90_000;
 const IDLE_WARNING_S = 20;
 
-export function Kiosk() {
+/** "v2" is the version under review at /v2: step 2 shows the environment types as video thumbnails. */
+export function Kiosk({ variant = "v1" }: { variant?: "v1" | "v2" }) {
   const [history, setHistory] = useState<Screen[]>(["landing"]);
   const [sel, setSel] = useState<Selection>(EMPTY_SELECTION);
   const [contact, setContact] = useState<Contact>(EMPTY_CONTACT);
@@ -172,7 +173,7 @@ export function Kiosk() {
         <PreviewTabProvider value={[previewTab, setPreviewTab]}>
         <div key={screen} className={direction === "back" ? "animate-enter-back" : "animate-enter-forward"}>
         {screen === "setup" && <SetupStep sel={sel} onChange={setSel} />}
-        {screen === "environments" && <EnvironmentsStep sel={sel} onChange={setSel} />}
+        {screen === "environments" && <EnvironmentsStep sel={sel} onChange={setSel} videoCards={variant === "v2"} />}
         {screen === "tasks" && <TasksStep sel={sel} onChange={setSel} />}
         {screen === "review" && <ReviewStep sel={sel} />}
         {contactKind && (

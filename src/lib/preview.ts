@@ -1,6 +1,5 @@
 import "server-only";
 import { DOMAINS, DOMAIN_BY_SLUG } from "./catalog";
-import { MAIN_BUCKET, TEMP_MAIN_BUCKET_CLIPS } from "./preview-clips";
 import { encodeKeyPath, signedGetHeaders } from "./r2-sign";
 
 // Preview videos, one per environment type, played on the site from
@@ -47,26 +46,20 @@ function misconfigured(why: string): null {
 }
 
 /**
- * The object behind one environment type's preview, or null. Only slugs in the
- * catalog get this far, so a request can never name a path of its own.
- * TEMPORARY: while previews come from the main bucket, only the fixed test clips
- * are served from it. In the preview bucket each one is <slug>.mp4.
+ * The object behind one environment type's preview, or null: <slug>/<slug>.mp4 in the
+ * preview bucket (e.g. home/home.mp4). Only slugs in the catalog get this far, so a
+ * request can never name a path of its own.
  */
-function objectKey(bucket: string, slug: string): string | null {
+function objectKey(slug: string): string | null {
   // Own keys only: "__proto__", "constructor" and the like are not environment types.
   if (!Object.hasOwn(DOMAIN_BY_SLUG, slug)) return null;
-  if (bucket === MAIN_BUCKET) {
-    const key = Object.hasOwn(TEMP_MAIN_BUCKET_CLIPS, slug) ? TEMP_MAIN_BUCKET_CLIPS[slug] : null;
-    return typeof key === "string" ? key : null;
-  }
-  return `${slug}.mp4`;
+  return `${slug}/${slug}.mp4`;
 }
 
 /** The environment types that have a preview, for the page to know which to offer. Names only. */
 export function previewSlugs(): string[] {
-  const cfg = config();
-  if (!cfg) return [];
-  return DOMAINS.map((d) => d.slug).filter((slug) => objectKey(cfg.bucket, slug) !== null);
+  if (!config()) return [];
+  return DOMAINS.map((d) => d.slug).filter((slug) => objectKey(slug) !== null);
 }
 
 // One range, as browsers send for video: "bytes=0-", "bytes=1000-1999", "bytes=-500".
@@ -81,7 +74,7 @@ const plain = (status: number, text: string) =>
 export async function previewResponse(slug: string, range: string | null, method: "GET" | "HEAD" = "GET"): Promise<Response> {
   const cfg = config();
   if (!cfg) return plain(404, "Not found");
-  const key = objectKey(cfg.bucket, slug);
+  const key = objectKey(slug);
   if (!key) return plain(404, "Not found");
 
   const path = `/${encodeKeyPath(cfg.bucket)}/${encodeKeyPath(key)}`;
